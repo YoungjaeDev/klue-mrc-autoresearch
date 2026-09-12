@@ -12,13 +12,33 @@ from unittest.mock import Mock, patch
 
 from autoresearch_lab import tracking, plotting
 from rehearsal import official_mrc
+from rehearsal.official_mrc_runner import local_identity
+
+
+def canonical_training(directory, run_kind="reference", payload=b"synthetic adapter"):
+    (directory / "adapter").mkdir(parents=True)
+    (directory / "adapter/adapter_model.safetensors").write_bytes(payload)
+    (directory / "events.jsonl").write_text('{}\n', encoding="utf-8")
+    run = {"model_id": "example/base", "model_revision": "fixed-revision", "train_sha256": "data-hash",
+           "train_code_sha256": "code-hash", "run_kind": run_kind, "diagnostic": False,
+           "recipe": {"max_steps": 30, "batch_size": 2, "gradient_accumulation_steps": 4}}
+    tracking.write_json(directory / "run.json", run)
+    tracking.write_json(directory / "artifacts.json", {"adapter/adapter_model.safetensors": tracking.sha256(directory / "adapter/adapter_model.safetensors")})
+    tracking.write_json(directory / "status.json", {"status": "completed", "diagnostic": False,
+        "optimizer_steps": 30, "sample_presentations": 240, "train_seconds": 140,
+        "adapter_path": str((directory / "adapter").resolve()),
+        "run_sha256": tracking.sha256(directory / "run.json"), "events_sha256": tracking.sha256(directory / "events.jsonl")})
+    return directory
 
 
 def sealed_evaluation(directory, em=60.0, rouge=65.0, split="search", adapter=True, diagnostic=False):
     directory.mkdir()
     selection = {"split": split, "diagnostic_prefix": diagnostic, "split_manifest_sha256": "fixed"}
-    record = {"conditions": {"metric_sha256": official_mrc.METRIC_SHA256, "selection": selection},
-              "adapter": {"files": {"adapter.safetensors": "fixed"}} if adapter else None}
+    (directory / "adapter").mkdir()
+    (directory / "adapter/adapter_model.safetensors").write_bytes(b"synthetic adapter")
+    record = {"conditions": {"metric_sha256": official_mrc.METRIC_SHA256, "selection": selection,
+                             "base_model": {"model_id": "example/base", "revision": "fixed-revision"}},
+              "adapter": local_identity(directory / "adapter") if adapter else None}
     tracking.write_json(directory / "run.json", record)
     (directory / "raw_predictions.jsonl").write_text('{"prediction":"private fixture"}\n', encoding="utf-8")
     group = {"count": 1, "exact_match": em, "rouge_w": rouge}
@@ -33,6 +53,13 @@ def sealed_evaluation(directory, em=60.0, rouge=65.0, split="search", adapter=Tr
 def score_args(root, path, kind="reference", name="reference", **extra):
     args = tracking.parser().parse_args(["score", "--tracking-dir", str(root / "tracking"),
         "--group", "example", "--run-name", name, "--kind", kind, "--scores", str(path)])
+    if kind in {"reference", "candidate", "selected"}:
+        directory = root / (name + "-training")
+        if not directory.exists():
+            canonical_training(directory, "candidate" if kind == "candidate" else "reference")
+        args.training_dir = directory
+    elif kind == "studio":
+        args.adapter = path.parent / "adapter"
     for key, value in extra.items():
         setattr(args, key, value)
     return args
@@ -156,6 +183,65 @@ class TrackingTests(unittest.TestCase):
             args = score_args(root, sealed_evaluation(root / "diagnostic", diagnostic=True))
             with self.assertRaisesRegex(ValueError, "Diagnostic prefix"):
                 tracking.score_record(args)
+
+    def test_other_adapter_scores_cannot_be_attached_to_completed_training(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = score_args(root, sealed_evaluation(root / "eval"))
+            other = canonical_training(root / "other-training", payload=b"different adapter")
+            args.training_dir = other
+            with self.assertRaisesRegex(ValueError, "Evaluated adapter differs"):
+                tracking.score_record(args)
+            self.assertFalse((root / "tracking/example/search-baseline.json").exists())
+
+    def test_training_artifacts_run_and_metadata_are_verified(self):
+        for target in ("artifacts", "run", "events", "metadata"):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                args = score_args(root, sealed_evaluation(root / "eval"))
+                if target == "artifacts":
+                    tracking.write_json(args.training_dir / "artifacts.json", {"adapter/adapter_model.safetensors": "wrong"})
+                elif target in {"run", "events"}:
+                    path = args.training_dir / ("run.json" if target == "run" else "events.jsonl")
+                    with path.open("a") as stream:
+                        stream.write(" ")
+                else:
+                    args.metadata = root / "wrong-metadata.json"
+                    tracking.write_json(args.metadata, {"train_sha256": "another dataset"})
+                with self.assertRaises(ValueError):
+                    tracking.score_record(args)
+
+    def test_different_training_data_cannot_join_reference_group(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            tracking.score_record(score_args(root, sealed_evaluation(root / "ref")))
+            args = score_args(root, sealed_evaluation(root / "candidate"), "candidate", "candidate-01", candidate_index=1, decision="discard")
+            run = tracking.read_json(args.training_dir / "run.json")
+            run["train_sha256"] = "different data"
+            tracking.write_json(args.training_dir / "run.json", run)
+            status = tracking.read_json(args.training_dir / "status.json")
+            status["run_sha256"] = tracking.sha256(args.training_dir / "run.json")
+            tracking.write_json(args.training_dir / "status.json", status)
+            with self.assertRaisesRegex(ValueError, "training data differs"):
+                tracking.score_record(args)
+
+    def test_each_arm_requires_appropriate_source_and_preserves_evaluated_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = sealed_evaluation(root / "eval")
+            args = score_args(root, path)
+            source = tracking.read_json(path.parent / "run.json")
+            record = tracking.score_record(args)
+            self.assertEqual(record["provenance"]["evaluated_adapter"], source["adapter"])
+            self.assertEqual(record["adapter_identity_sha256"], record["provenance"]["adapter_identity_sha256"])
+            for kind in ("reference", "candidate", "selected", "studio"):
+                with self.subTest(kind=kind), self.assertRaises(ValueError):
+                    tracking.training_provenance(source, kind)
+            tracking.training_provenance(source, "studio", adapter_dir=path.parent / "adapter")
+            with self.assertRaises(ValueError):
+                tracking.training_provenance(source, "candidate", training_dir=args.training_dir)
+            with self.assertRaises(ValueError):
+                tracking.training_provenance(source, "base")
 
     def test_online_settings_disable_automatic_uploads_and_require_private_project(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {"WANDB_API_KEY": "test-placeholder"}):

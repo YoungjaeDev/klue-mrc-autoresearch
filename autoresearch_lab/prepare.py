@@ -21,6 +21,13 @@ SOURCE_HASHES = {"train": "45fcfd50b99aed4cd55c8c5856e42aa4a5139808cc36b36994b3c
 MESSAGE_HASHES = {"train": "cf95dc2a800a088c8dca201b8c0fbffc0b09c37f1f34ffdea7fafe26635de997",
                   "validation": "6d5619a88708b90fa8945b38c70e82f1a06bfb483fe6ac1588df385817073f0e"}
 COUNTS = {"train": {1: 7308, 2: 4729, 3: 5517}, "validation": {1: 2437, 2: 1571, 3: 1833}}
+FROZEN_RUNTIME_FILES = ("prepare.py", "autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py",
+                        "program.md", "pyproject.toml", "uv.lock")
+
+
+def runtime_freeze(root=ROOT):
+    """Freeze current execution rules/dependencies; root train.py remains agent-editable."""
+    return {str((root / relative).resolve()): task.digest(root / relative) for relative in FROZEN_RUNTIME_FILES}
 
 
 def download_file(url, destination, expected=None):
@@ -153,7 +160,7 @@ def prepare(output=DEFAULT_OUTPUT, source=SOURCE):
                       "scope": "Input row selection only; Studio dataloader/template/weights equivalence is not asserted"},
         "splits": {k: {key: val for key, val in v.items() if key != "ids"} for k, v in split_manifest["splits"].items()},
         "prior_exposure": split_manifest["prior_exposure"], "overlap_with_train": split_manifest["overlap_with_train"],
-        "frozen_files": {str(path.resolve()): task.digest(path) for path in owned},
+        "frozen_files": {**{str(path.resolve()): task.digest(path) for path in owned}, **runtime_freeze()},
     }
     task.write_json(output / "manifest.json", result)
     return result

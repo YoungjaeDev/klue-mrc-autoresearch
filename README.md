@@ -24,9 +24,9 @@ uv run python -m unittest discover -s tests -v
 uv run python prepare.py
 ```
 
-준비 명령은 공개 HF 데이터와 KLUE 공식 dev를 익명으로 다운로드합니다. 모델 가중치를 받거나 GPU를 사용하지 않습니다. 원본 train 17,554행과 validation 5,841행을 모두 검증합니다. 이미 있는 파일은 hash가 같을 때만 재사용하며, 다른 실행 결과를 덮어쓰지 않습니다.
+준비 명령은 공개 HF 데이터와 KLUE 공식 dev를 익명으로 다운로드합니다. 모델 가중치를 받거나 GPU를 사용하지 않습니다. 원본 train 17,554행과 validation 5,841행을 모두 검증합니다. **다운로드한 source 파일만** hash를 확인한 뒤 재사용합니다. generated 출력 폴더는 새 경로여야 하며, 기존 실행 결과를 덮어쓰지 않습니다.
 
-`data/generated/klue-autoresearch-v1/manifest.json`에 데이터 경로, SHA-256, 모델 revision, 선택한 ID, 분할을 기록합니다. 새로 준비하려면 `--output data/generated/새이름`을 지정하세요. 다운로드 파일과 준비 결과는 Git에서 제외합니다.
+`data/generated/klue-autoresearch-v1/manifest.json`에 데이터 경로, SHA-256, 모델 revision, 선택한 ID, 분할을 기록합니다. bootstrap·supervisor·`program.md`·평가 코드·의존성 파일의 현재 hash도 함께 고정합니다. 후보가 수정할 `train.py`는 이 목록에서 제외하고 실행별 코드 hash를 남깁니다. 이미 generated 폴더가 있으면 `--output data/generated/새이름`으로 다시 준비하세요. 다운로드 파일과 준비 결과는 Git에서 제외합니다.
 
 학습 입력은 seed 3407로 섞은 train의 1,024행입니다. 30 optimizer step × batch 2 × gradient accumulation 4 = 240개 샘플 제시 횟수입니다. **30번 실험이나 30 epoch라는 뜻이 아닙니다.** 이 정책은 기존 Studio의 짧은 학습 입력 선택을 독립적으로 재현하며, Studio 내부 코드나 가중치의 완전한 재현을 주장하지 않습니다.
 
@@ -64,7 +64,7 @@ uv run --extra tracking python -m autoresearch_lab.tracking collect --group my-s
 uv run --extra tracking python -m autoresearch_lab.plotting --group my-study --figures-dir outputs/figures/my-study
 ```
 
-공식 점수는 hash 검증을 거친 뒤 연결합니다. best curve는 SDK reference에서 시작하며 Studio 전체 실행 시간과 SDK 학습 시간을 섞지 않습니다. [추적 안내](docs/tracking.md)에 후보·최종 점수 등록, PNG·SVG, `--online` 옵션과 전송 제외 항목을 정리했습니다. 공개 소스의 새 W&B run 생성은 아직 검증하지 않았습니다.
+공식 점수는 평가 hash와 실제 학습 adapter의 파일별 hash를 대조한 뒤 연결합니다. SDK 점수를 등록할 때는 `--training-dir`로 해당 학습 output을 지정합니다. best curve는 SDK reference에서 시작하며 Studio 전체 실행 시간과 SDK 학습 시간을 섞지 않습니다. [추적 안내](docs/tracking.md)에 후보·최종 점수 등록, PNG·SVG, `--online` 옵션과 전송 제외 항목을 정리했습니다. 공개 소스의 새 W&B run 생성은 아직 검증하지 않았습니다.
 
 ## 출처와 라이선스
 

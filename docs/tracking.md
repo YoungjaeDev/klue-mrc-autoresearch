@@ -34,16 +34,18 @@ uv run --extra tracking python -m autoresearch_lab.tracking collect --group my-s
 
 `--scores`에는 evaluator가 만든 `scores.json`을 전달합니다. 이 파일과 같은 폴더의 `status.json`, `run.json`, `raw_predictions.jsonl`이 필요합니다. 수집기는 완료 상태와 **status→scores→run·예측 hash**를 검사하고 공식 scorer hash를 확인합니다. 진단용 prefix 점수는 거부합니다. 예측은 로컬에서 hash만 계산하고 W&B에 보내지 않습니다.
 
+SDK reference·candidate·selected는 **`--training-dir`가 필수**입니다. 해당 폴더의 `status.json`, `run.json`, `events.jsonl`, `artifacts.json`, `adapter/`가 있어야 합니다. 완료된 30-step 기록, 모델 revision, 학습 run/event hash, 저장 artifact의 실제 hash를 확인하고, 평가 `run.json`의 adapter 파일별 hash와 정확히 대조합니다. 다른 adapter의 점수를 해당 후보로 등록할 수 없습니다. adapter를 복사해 평가했어도 파일 이름과 내용이 같으면 허용합니다. 기록에는 평가한 adapter identity와 검증한 학습 출처를 보존합니다. `--metadata`가 검증된 모델·데이터·코드 hash를 덮어쓰려 하면 실패합니다.
+
 먼저 SDK reference의 전체 search 점수를 등록합니다. 이것이 best curve의 0번입니다.
 
 ```console
-uv run --extra tracking python -m autoresearch_lab.tracking score --group my-study --run-name reference --kind reference --scores outputs/reference-search/eval/scores.json --status outputs/reference-01/train/status.json --metadata outputs/reference-01/train/run.json
+uv run --extra tracking python -m autoresearch_lab.tracking score --group my-study --run-name reference --kind reference --scores outputs/reference-search/eval/scores.json --training-dir outputs/reference-01/train --metadata outputs/reference-01/train/run.json
 ```
 
 후보의 학습과 전체 search 평가가 완료된 뒤 판정을 연결합니다. 아래 `discard`는 명령 형식의 예시이며 실제 점수로 정해야 합니다.
 
 ```console
-uv run --extra tracking python -m autoresearch_lab.tracking score --group my-study --run-name candidate-01 --kind candidate --candidate-index 1 --decision discard --scores outputs/candidate-01-search/eval/scores.json --status outputs/candidate-01/train/status.json --metadata outputs/candidate-01/train/run.json
+uv run --extra tracking python -m autoresearch_lab.tracking score --group my-study --run-name candidate-01 --kind candidate --candidate-index 1 --decision discard --scores outputs/candidate-01-search/eval/scores.json --training-dir outputs/candidate-01/train --metadata outputs/candidate-01/train/run.json
 ```
 
 에이전트가 정한 판정이 **현재 best보다 EM이 엄격히 높으면 keep, 동률·하락이면 discard**라는 규칙과 맞는지 검사합니다. ROUGE-W가 오른 동률도 discard입니다. reference와 생성 조건 hash가 다르거나, 이미 기록한 후보의 내용을 바꾸려 하면 실패합니다. reference 없이 후보 best curve를 만들지 않습니다. 실패한 학습은 `collect`로 상태만 남기며 점수를 만들어 넣지 않습니다.
@@ -54,7 +56,7 @@ uv run --extra tracking python -m autoresearch_lab.tracking score --group my-stu
 uv run --extra tracking python -m autoresearch_lab.tracking score --group my-study --run-name base-final --kind base --scores outputs/base-final/eval/scores.json
 ```
 
-학습이 없는 base에는 `--status`를 생략합니다. 이 옵션에 평가 status를 넣어 평가 시간을 학습 시간으로 쓰지 마세요. 최종 arm끼리도 같은 생성 조건을 검사합니다. Studio adapter가 없으면 해당 arm을 비워 둡니다.
+학습이 없는 base에는 학습 출처 옵션을 붙이지 않습니다. 기존 Studio는 `--kind studio --adapter PATH_TO_YOUR_STUDIO_ADAPTER`로 사용자가 실제 adapter 폴더를 지정하고 평가 adapter와 hash를 대조합니다. SDK reference는 reference 학습 폴더를, selected는 선택된 candidate 또는 reference의 실제 학습 폴더를 `--training-dir`로 지정합니다. 평가 status를 학습 status로 전달하는 별도 옵션은 제공하지 않습니다. 최종 arm끼리도 같은 생성 조건을 검사합니다. Studio adapter가 없으면 해당 arm을 비워 둡니다.
 
 ## 기존 Studio loss는 선택 입력
 

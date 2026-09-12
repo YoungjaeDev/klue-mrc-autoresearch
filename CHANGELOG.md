@@ -11,3 +11,6 @@
 - 선택적 tracking extra와 기본 local-only 수집기, 봉인된 공식 점수 연결.
 - SDK reference부터 시작하는 best curve와 범위를 구분한 시간·VRAM PNG/SVG.
 - 사용자 지정 비공개 W&B 프로젝트의 명시적 온라인 전송 경로(새 run 검증 대기).
+- 공식 점수와 canonical SDK 학습 artifact·명시적 Studio adapter의 파일별 hash 연결 검사.
+- 준비 manifest에 운영 코드·program·의존성 freeze를 포함하고 generated 출력 재사용 조건을 명확화.
+- 기존 정상 Studio 환경에서 프로젝트 내부 Transformers 5.3 overlay를 만드는 검증된 선택 명령.

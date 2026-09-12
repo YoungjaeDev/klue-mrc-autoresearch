@@ -4,7 +4,7 @@
 
 ## 탐색 분할
 
-Windows 실행 안내의 `$studioPython`, `$overlay`, `$manifest`를 설정한 뒤 다음 변수를 읽습니다.
+Windows 실행 안내의 `$studioPython`, `$overlay`, `$manifest`를 설정한 뒤 다음 변수를 읽습니다. `$manifest`에는 새 prepare가 기록한 bootstrap·supervisor·`program.md`·의존성 및 데이터·평가 hash가 포함되어야 합니다. 학습과 평가에서 같은 manifest를 사용하고 탐색 중 다시 만들지 않습니다.
 
 ```powershell
 $contract = Get-Content -Raw $manifest | ConvertFrom-Json

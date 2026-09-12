@@ -6,11 +6,32 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from autoresearch_lab.prepare import verify_message, download_file
+from autoresearch_lab.prepare import verify_message, download_file, runtime_freeze, FROZEN_RUNTIME_FILES
+from autoresearch_lab.run import verify_files
 from rehearsal import official_mrc as task
 
 
 class PublicSourceContractTests(unittest.TestCase):
+    def test_runtime_freeze_detects_supervisor_and_program_changes_but_allows_train_edits(self):
+        required = {"autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py", "program.md", "pyproject.toml", "uv.lock"}
+        self.assertTrue(required <= set(FROZEN_RUNTIME_FILES))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in FROZEN_RUNTIME_FILES:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("original")
+            (root / "train.py").write_text("initial recipe")
+            frozen = runtime_freeze(root)
+            (root / "train.py").write_text("candidate recipe")
+            verify_files(frozen)
+            for relative in ("autoresearch_lab/run.py", "program.md"):
+                path = root / relative
+                path.write_text("changed")
+                with self.assertRaises(ValueError):
+                    verify_files(frozen)
+                path.write_text("original")
+
     def test_download_checks_hash_and_reuses_verified_file_without_network(self):
         payload = b"public data"
         digest = hashlib.sha256(payload).hexdigest()

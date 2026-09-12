@@ -26,6 +26,18 @@ $manifest = (Resolve-Path 'data/generated/klue-autoresearch-v1/manifest.json').P
 
 `bootstrap.json`에는 실제 버전과 경로가 기록됩니다. 값이 다르거나 overlay가 없으면 중단합니다. 함수가 설치나 패키지 수리를 대신하지 않습니다. 로그에는 개인 경로가 포함되므로 검토 없이 업로드하지 마세요.
 
+기존 전용 overlay가 없다면 **정상적으로 동작하는 위 Studio 환경 안에서** 프로젝트 내부에 다음 4개 패키지만 준비할 수도 있습니다. 새 target 폴더일 때 실행하고, 이미 준비했다면 설치 대신 아래 check부터 실행하세요.
+
+```powershell
+$overlay = Join-Path (Get-Location) '.runtime/tf530-overlay'
+uv pip install --python $studioPython --target $overlay --no-deps transformers==5.3.0 huggingface_hub==1.8.0 hf_xet==1.4.2 tiktoken==0.14.0
+& $studioPython -B -m autoresearch_lab.bootstrap --overlay $overlay --cache-dir outputs/project-overlay-check-01/cache --check-only
+```
+
+공개 저장소에서 이 target 설치와 metadata check를 확인했습니다. check 당시 heavy module은 로드하지 않았고, 기존 성공 환경 overlay와 비-pyc 모듈 파일이 바이트 단위로 일치했습니다. Studio 설치 패키지와 기존 overlay는 바꾸지 않습니다. **새 PC 전체 GPU 환경 설치나 공개 코드 1-step GPU 학습을 검증한 결과는 아닙니다.** PyTorch·Unsloth 등 나머지 의존성은 위 표에 맞는 기존 Studio 설치에 있어야 합니다.
+
+`$manifest`는 현재 코드로 새로 준비한 generated manifest여야 합니다. prepare가 데이터·평가 코드뿐 아니라 bootstrap, supervisor, `program.md`, `pyproject.toml`, `uv.lock`을 고정하므로 아래 `--frozen-manifest $manifest` 명령이 운영 조건도 검사합니다. 준비 뒤 조건을 바꿨다면 기존 baseline과 분리해 새 output으로 준비하고 다시 검증하세요. 후보별로 manifest hash를 갱신해서는 안 됩니다.
+
 ## 1-step 진단
 
 모델 가중치가 로컬에 있어야 무다운로드로 진행됩니다. CPU tokenizer preflight는 `local_files_only=True`로 캐시만 읽습니다. 학습 loader 자체는 캐시가 없으면 HF에서 가중치를 받을 수 있으므로 모델 다운로드가 필요한 새 환경에서는 먼저 해당 다운로드·저장 공간을 확인해야 합니다. 이 저장소의 CPU 준비 명령은 모델 캐시를 만들지 않습니다.

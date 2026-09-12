@@ -14,7 +14,7 @@ KLUE-MRC에서 30-step QLoRA reference보다 탐색 공식 EM을 높인다. 현�
 2. 기존 GPU 환경의 metadata를 확인한다. 임의 설치·자동 수리 없이 1-step 진단부터 진행한다.
 3. Git 연구 branch를 만들고 최초 `train.py`를 reference snapshot으로 보관한다.
 4. SDK reference를 30 step 학습하고 탐색 분할로 평가한다. 모델·데이터·prompt·생성 옵션·평가 코드를 고정한다.
-5. data manifest의 `frozen_files`에 bootstrap, run, 평가 코드와 고정 설정을 더한 controller용 manifest를 만들어 모든 실행 전후 hash를 검사한다. 수정할 train 코드는 제외하되 실행마다 snapshot과 hash를 기록한다. candidate가 자체적으로 검증을 우회하지 못하도록 에이전트가 외부에서 다시 확인한다.
+5. 준비 manifest의 `frozen_files`에 데이터·평가·bootstrap·supervisor·`program.md`·의존성 파일이 포함됐는지 확인하고, 이 manifest를 supervisor에 전달해 모든 실행 전후 hash를 검사한다. 수정할 train 코드는 제외하되 실행마다 snapshot과 hash를 기록한다. 탐색 도중 manifest를 다시 만들어 변경된 파일을 승인하지 않는다. candidate가 자체적으로 검증을 우회하지 못하도록 에이전트가 외부에서 다시 확인한다.
 
 ## 반복
 

@@ -16,7 +16,7 @@ SCALAR_FIELDS = {"loss", "learning_rate", "grad_norm", "epoch", "step_seconds",
 METADATA_FIELDS = {"model_id", "model_revision", "train_sha256", "train_code_sha256",
                    "adapter_sha256", "hypothesis", "diff_sha256", "source_duration_seconds",
                    "source_run_started_at", "source_run_ended_at", "source_time_evidence", "run_kind", "diagnostic",
-                   "conditions_sha256", "scores_sha256", "split"}
+                   "conditions_sha256", "scores_sha256", "split", "adapter_identity_sha256"}
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -300,18 +300,84 @@ def validated_scores(path):
     return record, {"overall": safe.pop("overall"), "by_question_type": safe}
 
 
+def training_provenance(source, kind, training_dir=None, adapter_dir=None):
+    """Bind the evaluated adapter bytes to a completed SDK run or explicit Studio adapter."""
+    from rehearsal.official_mrc_runner import local_identity
+    evaluated = source.get("adapter")
+    if kind == "base":
+        if evaluated is not None or training_dir or adapter_dir:
+            raise ValueError("Base requires no adapter or training source")
+        return {"status": "completed"}, {}, {"source_kind": "base", "evaluated_adapter": None}
+    if not isinstance(evaluated, dict) or not evaluated.get("files"):
+        raise ValueError("A trained arm requires the evaluator's adapter file map")
+    trusted, status, provenance = {}, {"status": "completed"}, {}
+    if kind == "studio":
+        if training_dir or not adapter_dir:
+            raise ValueError("Studio requires an explicit --adapter and no SDK training directory")
+        adapter_dir = adapter_dir.resolve(strict=True)
+        provenance = {"source_kind": "historical_studio", "adapter_directory": str(adapter_dir)}
+    else:
+        if not training_dir or adapter_dir:
+            raise ValueError("Reference/candidate/selected requires --training-dir")
+        training_dir = training_dir.resolve(strict=True)
+        raw_status = read_json(training_dir / "status.json")
+        run = read_json(training_dir / "run.json")
+        artifacts = read_json(training_dir / "artifacts.json")
+        if (raw_status.get("status") != "completed" or raw_status.get("diagnostic") is not False
+                or run.get("diagnostic") is not False or raw_status.get("optimizer_steps") != 30
+                or raw_status.get("sample_presentations") != 240):
+            raise ValueError("Training source must be completed, non-diagnostic 30-step SDK output")
+        for filename, field in (("run.json", "run_sha256"), ("events.jsonl", "events_sha256")):
+            if sha256(training_dir / filename) != raw_status.get(field):
+                raise ValueError("Training status does not seal its run/events")
+        recipe = run.get("recipe", {})
+        if any(recipe.get(k) != v for k, v in {"max_steps": 30, "batch_size": 2, "gradient_accumulation_steps": 4}.items()):
+            raise ValueError("Training source changed the fixed update budget")
+        allowed = {"reference", "candidate"} if kind == "selected" else {kind}
+        if run.get("run_kind") not in allowed:
+            raise ValueError("Requested arm differs from the training run kind")
+        base = source["conditions"].get("base_model")
+        if base != {"model_id": run.get("model_id"), "revision": run.get("model_revision")}:
+            raise ValueError("Evaluated base differs from the training model/revision")
+        adapter_dir = training_dir / "adapter"
+        if Path(raw_status.get("adapter_path", "")).resolve() != adapter_dir.resolve():
+            raise ValueError("Training status points outside its canonical adapter directory")
+        if not artifacts:
+            raise ValueError("Training artifact manifest is empty")
+        for relative, expected in artifacts.items():
+            artifact = (training_dir / relative).resolve(strict=True)
+            if not artifact.is_relative_to(adapter_dir.resolve()) or sha256(artifact) != expected:
+                raise ValueError("Training artifact checksum/path mismatch")
+        actual_files = {path.relative_to(training_dir).as_posix() for path in adapter_dir.rglob("*") if path.is_file()}
+        if actual_files != set(artifacts):
+            raise ValueError("Adapter files differ from the training artifact manifest")
+        trusted = {key: run[key] for key in ("model_id", "model_revision", "train_sha256", "train_code_sha256", "run_kind")}
+        status = sanitized_status(raw_status)
+        provenance = {"source_kind": "sdk", "training_directory": str(training_dir),
+                      "training_run_sha256": sha256(training_dir / "run.json"),
+                      "training_status_sha256": sha256(training_dir / "status.json"),
+                      "artifacts_sha256": sha256(training_dir / "artifacts.json")}
+    identity = local_identity(adapter_dir)
+    if identity["files"] != evaluated["files"]:
+        raise ValueError("Evaluated adapter differs from the declared training/Studio artifact")
+    identity_hash = hashlib.sha256(json.dumps(identity["files"], sort_keys=True).encode()).hexdigest()
+    trusted["adapter_identity_sha256"] = identity_hash
+    trusted["adapter_sha256"] = identity["files"].get("adapter_model.safetensors", identity_hash)
+    provenance.update(evaluated_adapter=evaluated, adapter_identity_sha256=identity_hash)
+    return status, trusted, provenance
+
+
 def score_record(args):
     source, scores = validated_scores(args.scores)
-    if (args.kind == "base") != (source.get("adapter") is None):
-        raise ValueError("Base must have no adapter; every trained arm must identify its adapter")
+    status, trusted, provenance = training_provenance(source, args.kind, args.training_dir, args.adapter)
     directory = local_directory(args)
     condition_hash = hashlib.sha256(json.dumps(source["conditions"], sort_keys=True).encode()).hexdigest()
     split = source["conditions"]["selection"]["split"]
     metadata = filter_metadata(read_json(args.metadata)) if args.metadata else {}
-    status = sanitized_status(read_json(args.status)) if args.status else {"status": "completed"}
-    if status["status"] != "completed" or status.get("diagnostic"):
-        raise ValueError("Official scores require completed, non-diagnostic training")
-    record = {**metadata, **status, "name": args.run_name, "official_scores": scores,
+    if any(key in metadata and metadata[key] != value for key, value in trusted.items()):
+        raise ValueError("Supplied metadata differs from verified training provenance")
+    record = {**metadata, **trusted, **status, "name": args.run_name, "kind": args.kind,
+        "provenance": provenance, "official_scores": scores,
         "conditions_sha256": condition_hash, "scores_sha256": sha256(args.scores), "split": split,
         "evidence_path": str(args.scores.resolve())}
     if args.kind == "candidate":
@@ -320,6 +386,8 @@ def score_record(args):
         baseline = read_json(directory / "search-baseline.json")
         if baseline["conditions_sha256"] != condition_hash:
             raise ValueError("Candidate evaluation conditions differ from reference")
+        if baseline.get("train_sha256") != record["train_sha256"]:
+            raise ValueError("Candidate training data differs from the SDK reference")
         path = directory / "candidates.json"
         rows = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
         previous = [r for r in rows if r["candidate_index"] < args.candidate_index]
@@ -428,7 +496,8 @@ def parser():
     command = sub.add_parser("score", help="Verify sealed official scores before local/online tracking")
     common(command)
     command.add_argument("--scores", type=Path, required=True)
-    command.add_argument("--status", type=Path, help="Optional completed training status; never pass evaluation duration as training time")
+    command.add_argument("--training-dir", type=Path, help="Canonical completed SDK output containing status/run/events/artifacts and adapter/")
+    command.add_argument("--adapter", type=Path, help="Explicit historical Studio adapter directory; only for --kind studio")
     command.add_argument("--kind", choices=["base", "studio", "reference", "selected", "candidate"], required=True)
     command.add_argument("--candidate-index", type=int)
     command.add_argument("--decision", choices=["keep", "discard"])
