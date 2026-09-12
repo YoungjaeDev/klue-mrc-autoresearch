@@ -13,6 +13,7 @@ import queue
 import re
 import signal
 import subprocess
+import sys
 import threading
 import time
 
@@ -175,6 +176,11 @@ def run_command(argv, run_dir, state_dir, timeout_seconds, *, gpu=False, deadlin
     if deadline is not None and time.time() >= deadline:
         raise TimeoutError("Campaign deadline reached")
     run_dir, state_dir = Path(run_dir), Path(state_dir)
+    argv = list(argv)
+    if argv[0] in ("python", "python3"):
+        # Windows CreateProcess searches the parent exe's folder before PATH, which
+        # picks the base interpreter instead of the project .venv one.
+        argv[0] = sys.executable
     state_dir.mkdir(parents=True, exist_ok=True)
     hashes = dict(frozen_files or {})
     verify_files(hashes)
