@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- README를 포함한 네 진입 파일과 Claude Code 시작·지침 연결·장부 재개 안내. Codex 실측과 Claude Code 미리허설 범위를 구분.
+
 - 공개 HF revision에서 KLUE messages와 원본 데이터를 받아 검증하는 CPU 준비 명령.
 - 고정 30-step SDK reference와 에이전트가 직접 고치는 root `train.py`.
 - GPU 직렬 lock, 소유 프로세스 종료, timeout 및 GPU 오류 중단 supervisor.
