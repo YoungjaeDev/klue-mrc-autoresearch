@@ -93,16 +93,21 @@ class WindowsRuntimeManifestTests(unittest.TestCase):
                                  profile=bad_dll)
 
     def test_child_environment_is_scoped_and_keeps_runtime_first(self):
-        contract = {"actual_python": "C:/Python/python.exe", "venv_launcher": "C:/venv/Scripts/python.exe",
-                    "python_dll": "C:/Python/python311.dll", "python_dll_sha256": "a" * 64,
-                    "python_version": [3, 11, 9], "runtime_dir": "C:/repo/runtime/windows_store"}
-        env = build_child_environment(contract, Path("C:/overlay"), Path("C:/repo"),
-                                      {"PATH": "kept", "PYTHONPATH": "old", "__PYVENV_LAUNCHER__": "bad"})
+        root = Path.cwd()
+        overlay, project = root / "overlay", root / "repo"
+        contract = {"actual_python": str(root / "Python/python.exe"),
+                    "venv_launcher": str(root / "venv/Scripts/python.exe"),
+                    "python_dll": str(root / "Python/python311.dll"), "python_dll_sha256": "a" * 64,
+                    "python_version": [3, 11, 9], "runtime_dir": str(project / "runtime/windows_store")}
+        parent_env = {"PATH": "kept", "PYTHONPATH": "old", "__PYVENV_LAUNCHER__": "bad"}
+        env = build_child_environment(contract, overlay, project, parent_env)
         self.assertEqual(env["AUTORESEARCH_DIRECT_PYTHON"], contract["actual_python"])
         self.assertEqual(env["__PYVENV_LAUNCHER__"], contract["venv_launcher"])
-        self.assertEqual(env["PYTHONPATH"].split(os.pathsep)[0], contract["runtime_dir"])
-        self.assertNotIn("old", env["PYTHONPATH"])
+        self.assertEqual(env["PYTHONPATH"].split(os.pathsep),
+                         [contract["runtime_dir"], str(overlay.resolve()), str(project.resolve())])
+        self.assertNotIn("old", env["PYTHONPATH"].split(os.pathsep))
         self.assertEqual(env["PATH"], "kept")
+        self.assertEqual(parent_env, {"PATH": "kept", "PYTHONPATH": "old", "__PYVENV_LAUNCHER__": "bad"})
 
 
 @unittest.skipUnless(os.name == "nt", "Windows Job Object contract")
