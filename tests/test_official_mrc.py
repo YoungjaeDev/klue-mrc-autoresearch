@@ -6,8 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from rehearsal import official_mrc as task
-from rehearsal import official_mrc_runner as runner
+import evaluate as task
 
 
 class OfficialMRCMetricTests(unittest.TestCase):
@@ -73,16 +72,16 @@ class OfficialMRCMetricTests(unittest.TestCase):
         self.assertEqual(rows[0]["answers"], [])
 
     def test_selecting_a_subset_is_explicit_and_validated(self):
-        self.assertEqual(runner.select_rows(self.rows, None), self.rows)
-        self.assertEqual(runner.select_rows(self.rows, 1), self.rows[:1])
+        self.assertEqual(task.select_rows(self.rows, None), self.rows)
+        self.assertEqual(task.select_rows(self.rows, 1), self.rows[:1])
         for bad in (0, -1, 4):
             with self.assertRaises(ValueError):
-                runner.select_rows(self.rows, bad)
+                task.select_rows(self.rows, bad)
 
     def test_named_split_cannot_fall_back_to_full_public_dev(self):
         args = argparse.Namespace(data_dir=task.DEFAULT_DATA, limit=None, split="final", split_manifest=None)
         with patch.object(task, "load_data", return_value=self.rows), self.assertRaises(ValueError):
-            runner.evaluation_rows(args)
+            task.evaluation_rows(args)
 
 
 @unittest.skipUnless(os.environ.get("RUN_MODEL_INTEGRATION") == "1" and (task.DEFAULT_DATA / "official-dev.json").exists(), "Model integration is opt-in; CPU contracts never load models")
@@ -138,32 +137,32 @@ class OfficialMRCBackendTests(unittest.TestCase):
             ("merged-run", self.args("merged-run", model=str(self.merged))),
         ):
             with self.subTest(name=name):
-                report = runner.run(args)
+                report = task.run(args)
                 self.assertEqual(report["overall"]["count"], 1)
                 self.assertFalse(report["full_dev"])
                 self.assertEqual(json.loads((args.output / "status.json").read_text())["status"], "completed")
                 self.assertEqual(len(task.read_jsonl(args.output / "raw_predictions.jsonl")), 1)
-        comparison = runner.compare(self.root / "base-run", self.root / "sft-run")
+        comparison = task.compare(self.root / "base-run", self.root / "sft-run")
         self.assertTrue(comparison["conditions_verified_equal"])
         self.assertFalse(comparison["full_dev"])
-        multi = runner.compare_arms({"base": self.root / "base-run", "studio": self.root / "sft-run",
+        multi = task.compare_arms({"base": self.root / "base-run", "studio": self.root / "sft-run",
                                     "reference": self.root / "sft-run", "selected": self.root / "sft-run"})
         self.assertEqual(set(multi["arms"]), {"base", "studio", "reference", "selected"})
         self.assertFalse(multi["training_equivalence_asserted"])
 
     def test_modified_score_cannot_be_used_for_selection_or_comparison(self):
         args = self.args("tampered-score")
-        runner.run(args)
+        task.run(args)
         scores_path = args.output / "scores.json"
         scores = json.loads(scores_path.read_text(encoding="utf-8"))
         scores["overall"]["exact_match"] = 123
         scores_path.write_text(json.dumps(scores), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Score evidence"):
-            runner.read_completed(args.output)
+            task.read_completed(args.output)
 
     def test_wrong_adapter_base_is_rejected_before_model_loading(self):
         with self.assertRaisesRegex(ValueError, "Adapter base"):
-            runner.load_backend(self.args("unused", model="wrong/model", adapter=str(self.adapter)), [])
+            task.load_backend(self.args("unused", model="wrong/model", adapter=str(self.adapter)), [])
 
     def test_qwen35_conditional_model_and_lora_on_cpu(self):
         from transformers import AutoTokenizer, Qwen3_5Config, Qwen3_5ForConditionalGeneration
@@ -185,23 +184,23 @@ class OfficialMRCBackendTests(unittest.TestCase):
         adapter = self.root / "qwen-adapter"
         get_peft_model(model, LoraConfig(r=2, lora_alpha=2, target_modules=["q_proj"], task_type="CAUSAL_LM")).save_pretrained(adapter)
         for name, adapter_path in (("qwen-base-run", None), ("qwen-sft-run", str(adapter))):
-            result = runner.run(self.args(name, model=str(qwen), adapter=adapter_path))
+            result = task.run(self.args(name, model=str(qwen), adapter=adapter_path))
             self.assertEqual(result["overall"]["count"], 1)
             record = json.loads((self.root / name / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(record["conditions"]["model_class"], "image-text-to-text")
-        self.assertTrue(runner.compare(self.root / "qwen-base-run", self.root / "qwen-sft-run")["conditions_verified_equal"])
+        self.assertTrue(task.compare(self.root / "qwen-base-run", self.root / "qwen-sft-run")["conditions_verified_equal"])
 
     def test_adapter_passed_as_full_model_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "adapter directory"):
-            runner.load_backend(self.args("unused", model=str(self.adapter)), [])
+            task.load_backend(self.args("unused", model=str(self.adapter)), [])
 
     def test_too_short_context_fails_without_truncation(self):
         with self.assertRaisesRegex(ValueError, "no truncation"):
-            runner.load_backend(self.args("unused", max_length=3), task.load_data()[:1])
+            task.load_backend(self.args("unused", max_length=3), task.load_data()[:1])
 
     def test_quantized_gpu_configuration_is_not_silently_run_on_cpu(self):
         with self.assertRaisesRegex(ValueError, "quantized evaluation requires CUDA"):
-            runner.load_backend(self.args("unused", load_in_4bit=True), [])
+            task.load_backend(self.args("unused", load_in_4bit=True), [])
 
 
 if __name__ == "__main__":

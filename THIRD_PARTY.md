@@ -15,10 +15,10 @@ Copyright 2026 YoungjaeDev. 별도로 표시한 파일을 제외한 프로젝트
 
 ## 공식 평가 코드
 
-`rehearsal/vendor/klue_baseline_utils.py`는 [KLUE-baseline](https://github.com/KLUE-benchmark/KLUE-baseline/blob/8a03c9447e4c225e806877a84242aea11258c790/klue_baseline/metrics/utils.py)의 수정 없는 사본이다. 상류 Apache-2.0 전문은 [vendored LICENSE](rehearsal/vendor/KLUE_BASELINE_LICENSE.md)에 보존했다. 원본의 귀속과 소스 hash는 [vendor README](rehearsal/vendor/README.md)에 있다.
+`klue_scorer/klue_baseline_utils.py`는 [KLUE-baseline](https://github.com/KLUE-benchmark/KLUE-baseline/blob/8a03c9447e4c225e806877a84242aea11258c790/klue_baseline/metrics/utils.py)의 수정 없는 사본이다. 상류 Apache-2.0 전문은 [vendored LICENSE](klue_scorer/KLUE_BASELINE_LICENSE.md)에 보존했다. 원본의 귀속과 소스 hash는 [vendor README](klue_scorer/README.md)에 있다.
 
 ## 실행 중 사용하는 모델·도구
 
-Qwen/Qwen3.5-4B revision은 `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`로 고정한다. 모델은 이 저장소에 포함하지 않으며 [모델 카드](https://huggingface.co/Qwen/Qwen3.5-4B)를 따른다. Unsloth·Transformers·PyTorch 등 외부 패키지의 라이선스는 각 배포본에 적용된다. 이 프로젝트는 Studio 코드를 재배포하지 않는다.
+Qwen/Qwen3.5-4B revision은 `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`로 고정한다. 모델은 이 저장소에 포함하지 않으며 [모델 카드](https://huggingface.co/Qwen/Qwen3.5-4B)를 따른다. Unsloth·Transformers·PyTorch 등 외부 패키지의 라이선스는 각 배포본에 적용된다.
 
 [karpathy/autoresearch](https://github.com/karpathy/autoresearch)의 에이전트 연구 흐름을 참고했다. 해당 프로젝트 소스는 복사하지 않았으며, 여기서는 고정 시간 대신 고정 30-step 비교를 사용한다.

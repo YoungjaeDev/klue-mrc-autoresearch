@@ -194,7 +194,7 @@ def run_command(argv, run_dir, state_dir, timeout_seconds, *, gpu=False, deadlin
         status, fatal = "completed", None
         owned = None
         stream_thread = None
-        credential_names = {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "WANDB_API_KEY"}
+        credential_names = {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"}
         credentials = [value for key, value in child_env.items()
             if value and (key in credential_names or key.endswith("_API_KEY") or key.endswith("_ACCESS_TOKEN"))]
         secret_values = sorted({*credentials, *(value for value in secrets or [] if value)}, key=len, reverse=True)

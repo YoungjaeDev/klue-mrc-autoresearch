@@ -6,7 +6,7 @@ import tempfile
 import time
 import unittest
 
-from autoresearch_lab.run import run_command, GpuLock
+from run import run_command, GpuLock
 
 
 class ControlTests(unittest.TestCase):
@@ -67,7 +67,7 @@ class ControlTests(unittest.TestCase):
             root = Path(directory)
             with GpuLock(root):
                 import subprocess
-                code = "from pathlib import Path; from autoresearch_lab.run import GpuLock; lock=GpuLock(Path(%r)); lock.__enter__()" % str(root)
+                code = "from pathlib import Path; from run import GpuLock; lock=GpuLock(Path(%r)); lock.__enter__()" % str(root)
                 process = subprocess.run([sys.executable, "-c", code], capture_output=True)
                 self.assertNotEqual(process.returncode, 0)
 

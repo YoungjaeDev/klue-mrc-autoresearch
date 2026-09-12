@@ -6,17 +6,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from autoresearch_lab.prepare import verify_message, download_file, runtime_freeze, FROZEN_RUNTIME_FILES
-from autoresearch_lab.run import verify_files
-from rehearsal import official_mrc as task
+from prepare import verify_message, download_file, runtime_freeze, FROZEN_RUNTIME_FILES
+from run import verify_files
+import evaluate as task
 
 
 class PublicSourceContractTests(unittest.TestCase):
     def test_runtime_freeze_detects_supervisor_and_program_changes_but_allows_train_edits(self):
-        required = {"autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py",
-                    "autoresearch_lab/windows_runtime.py", "runtime/windows_store/sitecustomize.py",
-                    "runtime/windows_store/launch.py", "runtime/windows_store/dispatch.py",
-                    "program.md", "pyproject.toml", "uv.lock"}
+        required = {"prepare.py", "evaluate.py", "run.py", "program.md", "pyproject.toml", "uv.lock"}
         self.assertTrue(required <= set(FROZEN_RUNTIME_FILES))
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -28,7 +25,7 @@ class PublicSourceContractTests(unittest.TestCase):
             frozen = runtime_freeze(root)
             (root / "train.py").write_text("candidate recipe")
             verify_files(frozen)
-            for relative in ("autoresearch_lab/run.py", "program.md"):
+            for relative in ("run.py", "evaluate.py", "program.md"):
                 path = root / relative
                 path.write_text("changed")
                 with self.assertRaises(ValueError):

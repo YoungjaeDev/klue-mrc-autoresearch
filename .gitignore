@@ -1,12 +1,10 @@
 .venv/
 .env
 .env.*
-!.env.example
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .cache/
-.runtime/
 data/
 outputs/
 unsloth_compiled_cache/
@@ -15,3 +13,5 @@ unsloth_compiled_cache/
 *.gguf
 *.bin
 *.pdf
+results.tsv
+.d-gpu-pins.txt
