@@ -31,7 +31,7 @@ $manifest = (Resolve-Path 'data/generated/klue-autoresearch-v1/manifest.json').P
 모델 가중치가 로컬에 있어야 무다운로드로 진행됩니다. CPU tokenizer preflight는 `local_files_only=True`로 캐시만 읽습니다. 학습 loader 자체는 캐시가 없으면 HF에서 가중치를 받을 수 있으므로 모델 다운로드가 필요한 새 환경에서는 먼저 해당 다운로드·저장 공간을 확인해야 합니다. 이 저장소의 CPU 준비 명령은 모델 캐시를 만들지 않습니다.
 
 ```powershell
-uv run python -m autoresearch_lab.run --state-dir outputs/state --run-dir outputs/diagnostic-01/process --timeout-seconds 1800 --gpu --frozen-manifest $manifest -- $studioPython -B -m autoresearch_lab.bootstrap --overlay $overlay --cache-dir outputs/diagnostic-01/cache --module autoresearch_lab.train -- --manifest $manifest --output outputs/diagnostic-01/train --diagnostic-steps 1 --run-kind reference
+uv run python -m autoresearch_lab.run --state-dir outputs/state --run-dir outputs/diagnostic-01/process --timeout-seconds 1800 --gpu --frozen-manifest $manifest -- $studioPython -B -m autoresearch_lab.bootstrap --overlay $overlay --cache-dir outputs/diagnostic-01/cache --module train -- --manifest $manifest --output outputs/diagnostic-01/train --diagnostic-steps 1 --run-kind reference
 ```
 
 이 명령은 GPU를 사용합니다. `process/process.json`, `train/status.json`, `train/events.jsonl`, `train/artifacts.json`, `train/adapter/`를 확인합니다. 성공한 프로세스 종료뿐 아니라 `status: completed`, 실제 step 수, 저장된 adapter hash까지 확인하세요. 진단 결과를 정식 비교에 섞지 않습니다.
@@ -39,7 +39,7 @@ uv run python -m autoresearch_lab.run --state-dir outputs/state --run-dir output
 ## SDK reference와 후보
 
 ```powershell
-uv run python -m autoresearch_lab.run --state-dir outputs/state --run-dir outputs/reference-01/process --timeout-seconds 1800 --gpu --frozen-manifest $manifest -- $studioPython -B -m autoresearch_lab.bootstrap --overlay $overlay --cache-dir outputs/reference-01/cache --module autoresearch_lab.train -- --manifest $manifest --output outputs/reference-01/train --run-kind reference
+uv run python -m autoresearch_lab.run --state-dir outputs/state --run-dir outputs/reference-01/process --timeout-seconds 1800 --gpu --frozen-manifest $manifest -- $studioPython -B -m autoresearch_lab.bootstrap --overlay $overlay --cache-dir outputs/reference-01/cache --module train -- --manifest $manifest --output outputs/reference-01/train --run-kind reference
 ```
 
 초기 설정은 30 step, max sequence 4096, batch 2 × accumulation 4, learning rate 2e-4, linear schedule, warmup 3, weight decay 0.001, AdamW 8bit, LoRA rank/alpha 16, dropout 0, seed/data_seed 3407, QLoRA 4bit, packing off, 응답 토큰만 학습입니다. text language layers의 q/k/v/o/gate/up/down projection만 대상으로 삼습니다. reference는 trainable tensor 256개와 parameter 21,233,664개도 확인합니다.

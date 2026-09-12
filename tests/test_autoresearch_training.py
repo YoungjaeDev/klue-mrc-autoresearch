@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from autoresearch_lab.train import EventWriter, load_contract, validate_recipe, DEFAULT_RECIPE, prepare_texts, validate_trainable_parameters
+from train import EventWriter, load_contract, validate_recipe, DEFAULT_RECIPE, prepare_texts, validate_trainable_parameters
 
 
 class TrainingContractTests(unittest.TestCase):

@@ -63,7 +63,7 @@ def main(argv=None):
     parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--check-only", action="store_true")
-    parser.add_argument("--module", default="autoresearch_lab.train")
+    parser.add_argument("--module", default="train")
     parser.add_argument("args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     record = activate(args.overlay, args.cache_dir)

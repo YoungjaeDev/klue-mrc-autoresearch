@@ -12,13 +12,13 @@ KLUE-MRC에서 30-step QLoRA reference보다 탐색 공식 EM을 높인다. 현�
 
 1. AGENTS.md를 읽고 CPU 검사와 데이터 준비를 실행한다. manifest와 split manifest hash를 기록한다.
 2. 기존 GPU 환경의 metadata를 확인한다. 임의 설치·자동 수리 없이 1-step 진단부터 진행한다.
-3. Git 연구 branch를 만들고 최초 `autoresearch_lab/train.py`를 reference snapshot으로 보관한다.
+3. Git 연구 branch를 만들고 최초 `train.py`를 reference snapshot으로 보관한다.
 4. SDK reference를 30 step 학습하고 탐색 분할로 평가한다. 모델·데이터·prompt·생성 옵션·평가 코드를 고정한다.
 5. data manifest의 `frozen_files`에 bootstrap, run, 평가 코드와 고정 설정을 더한 controller용 manifest를 만들어 모든 실행 전후 hash를 검사한다. 수정할 train 코드는 제외하되 실행마다 snapshot과 hash를 기록한다. candidate가 자체적으로 검증을 우회하지 못하도록 에이전트가 외부에서 다시 확인한다.
 
 ## 반복
 
-한 번에 가설 하나를 쓴다. 탐색 결과의 어떤 문제가 어떤 코드 변경으로 개선될지 설명한다. `autoresearch_lab/train.py`의 optimizer, 학습률 일정, LoRA rank·alpha·dropout·text target 선택 등을 실제로 수정할 수 있다. reference와의 고정 budget/model/data 조건, text-only 학습, 응답 label 검사는 유지한다. callback이나 검증 코드를 지워 점수를 얻지 않는다.
+한 번에 가설 하나를 쓴다. 탐색 결과의 어떤 문제가 어떤 코드 변경으로 개선될지 설명한다. `train.py`의 optimizer, 학습률 일정, LoRA rank·alpha·dropout·text target 선택 등을 실제로 수정할 수 있다. reference와의 고정 budget/model/data 조건, text-only 학습, 응답 label 검사는 유지한다. callback이나 검증 코드를 지워 점수를 얻지 않는다.
 
 후보마다 고유 output과 코드 snapshot을 사용한다. Windows에서는 GPU lock을 공유하는 run supervisor를 사용하고, 학습이 끝나 GPU가 해제된 뒤 평가를 실행한다. 학습 timeout 1,800초, 탐색 평가 timeout 3,600초를 기본값으로 하되 항상 6시간 절대 deadline 안에서 실행한다. timeout이면 해당 후보를 실패로 기록한다. GPU/kernel 오류, native crash 또는 STOP_GPU가 있으면 즉시 연구를 멈추고 원인을 보고한다. 드라이버·CUDA·Studio 설치를 고치거나 다른 사용자 프로세스를 종료하지 않는다.
 
