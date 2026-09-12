@@ -2,7 +2,7 @@
 
 Qwen3.5-4B를 KLUE-MRC 독해 데이터로 학습하고, AI 에이전트가 코드를 고쳐 성능을 비교하는 실습 저장소입니다. 에이전트가 가설을 세우고 코드를 수정한 뒤, 같은 조건으로 학습·평가하여 변경을 유지하거나 되돌립니다. 미리 정한 설정 목록을 순서대로 돌리는 grid search는 아닙니다.
 
-현재는 공개용 초기 구현입니다. CPU 계약 검사와 데이터 준비는 아래 명령으로 재현할 수 있습니다. 이 저장소의 GPU 학습, 최종 EM·ROUGE-W, 성능 개선 여부는 **측정 대기**입니다. Windows GPU 환경은 특정 기존 Studio 설치를 재사용하는 경로이며, 새 PC에 설치하는 범용 GPU 프로필은 아직 검증하지 않았습니다.
+현재는 공개용 초기 구현입니다. CPU 계약 검사와 데이터 준비는 아래 명령으로 재현할 수 있습니다. 추적되는 Windows helper로 기존 Studio 환경의 GPU 1-step 학습과 저장 adapter의 별도 3문항 재로드를 확인했습니다. 정식 30-step reference, 최종 EM·ROUGE-W, 성능 개선 여부는 **측정 대기**입니다. 새 PC에 설치하는 범용 GPU 프로필도 아직 검증하지 않았습니다. [검증 범위와 증거](docs/verification-2026-09-13.md)
 
 ## 파일 3개부터 읽기
 
@@ -32,9 +32,9 @@ uv run python prepare.py
 
 ## 2. Windows GPU 환경 확인
 
-[Windows 실행 안내](docs/windows-runtime.md)에서 기존 Studio Python과 Transformers 5.3 overlay를 확인하세요. 이 경로는 설치된 패키지를 고치거나 자동 설치하지 않습니다. CPU용 `uv sync`에는 PyTorch·Unsloth가 포함되지 않습니다.
+[Windows 실행 안내](docs/windows-runtime.md)에서 기존 Studio Python과 Transformers 5.3 overlay를 확인하세요. 공개 helper는 Windows Store 기반 venv가 가리키는 물리적 CPython·venv prefix·Python DLL을 CPU에서 manifest로 고정하고, supervisor가 그 물리적 프로세스를 직접 소유하게 합니다. 이 경로는 설치된 패키지를 고치거나 자동 설치하지 않습니다. CPU용 `uv sync`에는 PyTorch·Unsloth가 포함되지 않습니다.
 
-처음에는 별도 출력 폴더로 **1-step 진단**을 실행하고 로그와 adapter 저장을 확인합니다. 그 뒤 같은 고정 데이터와 조건으로 30-step SDK reference를 만듭니다. GUI에서 학습한 adapter를 가지고 있다면 이 SDK reference와 구분해 보관하세요. 데이터 순서·마스킹·구현 차이 때문에 같은 UI 숫자만으로 동일 실험이라고 볼 수 없습니다.
+처음에는 별도 출력 폴더로 **1-step 진단**을 실행하고 로그와 adapter 저장을 확인합니다. 그 뒤 같은 고정 데이터와 조건으로 30-step SDK reference를 만듭니다. 추적되는 공개 direct-runtime helper는 CPU 프로세스 소유권 검사와 기존 Studio 환경의 GPU 1-step·별도 3문항 재로드를 통과했습니다. 이 진단은 실행 체인과 adapter 저장·재로드를 확인하며 성능 개선을 측정하지 않습니다. GUI에서 학습한 adapter를 가지고 있다면 이 SDK reference와 구분해 보관하세요. 데이터 순서·마스킹·구현 차이 때문에 같은 UI 숫자만으로 동일 실험이라고 볼 수 없습니다. [실측 기록](docs/verification-2026-09-13.md)
 
 ## 3. 에이전트에게 연구 맡기기
 
@@ -64,7 +64,9 @@ uv run --extra tracking python -m autoresearch_lab.tracking collect --group my-s
 uv run --extra tracking python -m autoresearch_lab.plotting --group my-study --figures-dir outputs/figures/my-study
 ```
 
-공식 점수는 평가 hash와 실제 학습 adapter의 파일별 hash를 대조한 뒤 연결합니다. SDK 점수를 등록할 때는 `--training-dir`로 해당 학습 output을 지정합니다. best curve는 SDK reference에서 시작하며 Studio 전체 실행 시간과 SDK 학습 시간을 섞지 않습니다. [추적 안내](docs/tracking.md)에 후보·최종 점수 등록, PNG·SVG, `--online` 옵션과 전송 제외 항목을 정리했습니다. 공개 소스의 새 W&B run 생성은 아직 검증하지 않았습니다.
+공식 점수는 평가 hash와 실제 학습 adapter의 파일별 hash를 대조한 뒤 연결합니다. SDK 점수를 등록할 때는 `--training-dir`로 해당 학습 output을 지정합니다. best curve는 SDK reference에서 시작하며 Studio 전체 실행 시간과 SDK 학습 시간을 섞지 않습니다. [추적 안내](docs/tracking.md)에 후보·최종 점수 등록, PNG·SVG, `--online` 옵션과 전송 제외 항목을 정리했습니다.
+
+공개 tracking 코드의 W&B `collect`와 `score` 온라인 경로를 실제 비공개 프로젝트에서 검증했습니다. `collect`는 위 공개 GPU 1-step 진단의 이벤트 3개를 전송하고 재실행 중복이 없음을 확인했습니다. `score`는 별도로 완료된 private 30-step reference·candidate 산출물의 adapter·평가 hash를 확인한 뒤 search 요약과 판정을 전송했습니다. 이 상호운용 검증은 공개 코드가 30-step GPU 학습을 수행했다는 뜻이 아닙니다. [검증 범위와 증거](docs/verification-2026-09-13.md)
 
 ## 출처와 라이선스
 

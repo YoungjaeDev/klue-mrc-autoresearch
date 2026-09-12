@@ -13,7 +13,10 @@ from rehearsal import official_mrc as task
 
 class PublicSourceContractTests(unittest.TestCase):
     def test_runtime_freeze_detects_supervisor_and_program_changes_but_allows_train_edits(self):
-        required = {"autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py", "program.md", "pyproject.toml", "uv.lock"}
+        required = {"autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py",
+                    "autoresearch_lab/windows_runtime.py", "runtime/windows_store/sitecustomize.py",
+                    "runtime/windows_store/launch.py", "runtime/windows_store/dispatch.py",
+                    "program.md", "pyproject.toml", "uv.lock"}
         self.assertTrue(required <= set(FROZEN_RUNTIME_FILES))
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

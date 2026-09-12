@@ -22,6 +22,8 @@ MESSAGE_HASHES = {"train": "cf95dc2a800a088c8dca201b8c0fbffc0b09c37f1f34ffdea7fa
                   "validation": "6d5619a88708b90fa8945b38c70e82f1a06bfb483fe6ac1588df385817073f0e"}
 COUNTS = {"train": {1: 7308, 2: 4729, 3: 5517}, "validation": {1: 2437, 2: 1571, 3: 1833}}
 FROZEN_RUNTIME_FILES = ("prepare.py", "autoresearch_lab/bootstrap.py", "autoresearch_lab/run.py",
+                        "autoresearch_lab/windows_runtime.py", "runtime/windows_store/sitecustomize.py",
+                        "runtime/windows_store/launch.py", "runtime/windows_store/dispatch.py",
                         "program.md", "pyproject.toml", "uv.lock")
 
 

@@ -79,6 +79,49 @@ class FakeRun:
 
 
 class TrackingTests(unittest.TestCase):
+    def test_windows_artifact_separators_preserve_full_adapter_binding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = score_args(root, sealed_evaluation(root / "evaluation"))
+            path = args.training_dir / "artifacts.json"
+            artifacts = tracking.read_json(path)
+            tracking.write_json(path, {key.replace("/", "\\"): value for key, value in artifacts.items()})
+            record = tracking.score_record(args)
+            self.assertEqual(record["provenance"]["artifacts_sha256"], tracking.sha256(path))
+            self.assertEqual(record["adapter_sha256"], next(iter(artifacts.values())))
+            (args.training_dir / "adapter/extra.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "Adapter files differ"):
+                tracking.score_record(args)
+
+    def test_artifact_normalization_rejects_collisions_and_unsafe_paths(self):
+        for key in ("adapter\\model", "adapter/./model", "adapter//model"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "collide"):
+                tracking.normalized_artifacts({"adapter/model": "hash", key: "hash"})
+        for key in ("../adapter/model", "adapter/../model", "adapter\\..\\model", "/adapter/model",
+                    "\\adapter\\model", "C:/adapter/model", "C:model", "\\\\host\\share\\model",
+                    "adapter/model:stream", ".", ""):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                tracking.normalized_artifacts({key: "hash"})
+
+    def test_score_resources_keep_training_and_evaluation_scopes_separate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            args = score_args(root, sealed_evaluation(root / "evaluation"))
+            for directory, values in ((args.training_dir, {"duration_seconds": 190, "peak_gpu_allocated_bytes": 800}),
+                                      (args.scores.parent, {"duration_seconds": 900, "peak_gpu_allocated_bytes": 700})):
+                status = tracking.read_json(directory / "status.json")
+                tracking.write_json(directory / "status.json", {**status, **values})
+            fake = SimpleNamespace(id="fake-run", summary={}, finish=Mock())
+            with patch.object(tracking, "_online_run", return_value=(fake, {})):
+                self.assertEqual(tracking.score(args)["status"], "synced")
+            record = tracking.read_json(root / "tracking/example/search-baseline.json")
+            expected = {"train_seconds": 140, "train_duration_seconds": 190, "train_peak_gpu_allocated_bytes": 800,
+                        "eval_duration_seconds": 900, "eval_peak_gpu_allocated_bytes": 700}
+            for key, value in expected.items():
+                self.assertEqual(record[key], value)
+                self.assertEqual(fake.summary[f"resources/{key}"], value)
+            self.assertEqual(record["provenance"]["evaluation_status_sha256"], tracking.sha256(args.scores.parent / "status.json"))
+
     def test_local_collect_does_not_import_wandb_and_preserves_only_allowed_fields(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

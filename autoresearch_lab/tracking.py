@@ -6,13 +6,15 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import time
 from typing import Any
 
 SCALAR_FIELDS = {"loss", "learning_rate", "grad_norm", "epoch", "step_seconds",
                  "gpu_allocated_bytes", "gpu_reserved_bytes", "peak_gpu_allocated_bytes"}
+RESOURCE_FIELDS = {"train_seconds", "train_duration_seconds", "train_peak_gpu_allocated_bytes",
+                   "eval_duration_seconds", "eval_peak_gpu_allocated_bytes"}
 METADATA_FIELDS = {"model_id", "model_revision", "train_sha256", "train_code_sha256",
                    "adapter_sha256", "hypothesis", "diff_sha256", "source_duration_seconds",
                    "source_run_started_at", "source_run_ended_at", "source_time_evidence", "run_kind", "diagnostic",
@@ -300,6 +302,26 @@ def validated_scores(path):
     return record, {"overall": safe.pop("overall"), "by_question_type": safe}
 
 
+def normalized_artifacts(artifacts):
+    """Accept either platform's separators without changing the sealed manifest bytes."""
+    if not isinstance(artifacts, dict) or not artifacts:
+        raise ValueError("Training artifact manifest is empty or invalid")
+    normalized = {}
+    for raw, digest in artifacts.items():
+        if not isinstance(raw, str) or not raw or "\x00" in raw:
+            raise ValueError("Invalid training artifact path")
+        relative = raw.replace("\\", "/")
+        path = PurePosixPath(relative)
+        if (path.is_absolute() or PureWindowsPath(raw).drive or ":" in relative
+                or ".." in relative.split("/") or path.as_posix() == "."):
+            raise ValueError("Training artifact path must be relative without parent traversal")
+        key = path.as_posix()
+        if key in normalized:
+            raise ValueError("Training artifact paths collide after normalization")
+        normalized[key] = digest
+    return normalized
+
+
 def training_provenance(source, kind, training_dir=None, adapter_dir=None):
     """Bind the evaluated adapter bytes to a completed SDK run or explicit Studio adapter."""
     from rehearsal.official_mrc_runner import local_identity
@@ -322,7 +344,7 @@ def training_provenance(source, kind, training_dir=None, adapter_dir=None):
         training_dir = training_dir.resolve(strict=True)
         raw_status = read_json(training_dir / "status.json")
         run = read_json(training_dir / "run.json")
-        artifacts = read_json(training_dir / "artifacts.json")
+        artifacts = normalized_artifacts(read_json(training_dir / "artifacts.json"))
         if (raw_status.get("status") != "completed" or raw_status.get("diagnostic") is not False
                 or run.get("diagnostic") is not False or raw_status.get("optimizer_steps") != 30
                 or raw_status.get("sample_presentations") != 240):
@@ -342,8 +364,6 @@ def training_provenance(source, kind, training_dir=None, adapter_dir=None):
         adapter_dir = training_dir / "adapter"
         if Path(raw_status.get("adapter_path", "")).resolve() != adapter_dir.resolve():
             raise ValueError("Training status points outside its canonical adapter directory")
-        if not artifacts:
-            raise ValueError("Training artifact manifest is empty")
         for relative, expected in artifacts.items():
             artifact = (training_dir / relative).resolve(strict=True)
             if not artifact.is_relative_to(adapter_dir.resolve()) or sha256(artifact) != expected:
@@ -369,14 +389,26 @@ def training_provenance(source, kind, training_dir=None, adapter_dir=None):
 
 def score_record(args):
     source, scores = validated_scores(args.scores)
+    eval_status_path = args.scores.parent / "status.json"
+    eval_status = read_json(eval_status_path)
+    if eval_status.get("status") != "completed" or eval_status.get("scores_sha256") != sha256(args.scores):
+        raise ValueError("Evaluation status does not seal the scores")
     status, trusted, provenance = training_provenance(source, args.kind, args.training_dir, args.adapter)
+    resources = {}
+    for prefix, values in (("train", status), ("eval", eval_status)):
+        for key in ("duration_seconds", "peak_gpu_allocated_bytes"):
+            if _finite_number(values.get(key)):
+                resources[f"{prefix}_{key}"] = values[key]
+    if _finite_number(status.get("train_seconds")):
+        resources["train_seconds"] = status["train_seconds"]
+    provenance["evaluation_status_sha256"] = sha256(eval_status_path)
     directory = local_directory(args)
     condition_hash = hashlib.sha256(json.dumps(source["conditions"], sort_keys=True).encode()).hexdigest()
     split = source["conditions"]["selection"]["split"]
     metadata = filter_metadata(read_json(args.metadata)) if args.metadata else {}
     if any(key in metadata and metadata[key] != value for key, value in trusted.items()):
         raise ValueError("Supplied metadata differs from verified training provenance")
-    record = {**metadata, **trusted, **status, "name": args.run_name, "kind": args.kind,
+    record = {**metadata, **trusted, **status, **resources, "name": args.run_name, "kind": args.kind,
         "provenance": provenance, "official_scores": scores,
         "conditions_sha256": condition_hash, "scores_sha256": sha256(args.scores), "split": split,
         "evidence_path": str(args.scores.resolve())}
@@ -440,6 +472,7 @@ def score(args):
                 payload["candidate_index"] = record["candidate_index"]
             if "decision" in record:
                 payload["candidate/decision"] = record["decision"]
+            payload.update({f"resources/{key}": record[key] for key in RESOURCE_FIELDS if key in record})
             run.summary.update(payload)
             result = {"status": "synced", "run_id": run.id}
     except Exception as error:

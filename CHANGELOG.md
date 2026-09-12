@@ -7,10 +7,13 @@
 - GPU 직렬 lock, 소유 프로세스 종료, timeout 및 GPU 오류 중단 supervisor.
 - 공식 EM·ROUGE-W와 탐색·최종 분할 계약 검사.
 - 한국어 연구 지침과 기존 Windows Studio 환경 안내.
-- GPU 실험 및 최종 성능 비교는 측정 대기.
+- 공개 Windows helper의 기존 Studio 환경 GPU 1-step 학습과 별도 3문항 adapter 재로드 진단. 정식 30-step과 최종 성능 비교는 측정 대기.
 - 선택적 tracking extra와 기본 local-only 수집기, 봉인된 공식 점수 연결.
 - SDK reference부터 시작하는 best curve와 범위를 구분한 시간·VRAM PNG/SVG.
-- 사용자 지정 비공개 W&B 프로젝트의 명시적 온라인 전송 경로(새 run 검증 대기).
+- 사용자 지정 비공개 W&B 프로젝트에서 공개 `collect`·`score`의 새 run, 중복 없는 재실행, server summary 검증.
+- Windows·POSIX artifact 경로 구분자를 정규화하고 충돌·경로 이탈·hash 불일치를 거부하는 점수 연결 검사.
 - 공식 점수와 canonical SDK 학습 artifact·명시적 Studio adapter의 파일별 hash 연결 검사.
 - 준비 manifest에 운영 코드·program·의존성 freeze를 포함하고 generated 출력 재사용 조건을 명확화.
 - 기존 정상 Studio 환경에서 프로젝트 내부 Transformers 5.3 overlay를 만드는 검증된 선택 명령.
+- Windows Store venv의 물리적 CPython·prefix·Python DLL을 묶는 runtime manifest와 direct dispatch helper.
+- direct runtime의 손자 프로세스가 timeout 뒤 남지 않는 Windows CPU Job Object 계약 검사.

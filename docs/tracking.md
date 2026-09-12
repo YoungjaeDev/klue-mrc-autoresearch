@@ -1,6 +1,6 @@
 # 로컬 기록, W&B, PNG·SVG
 
-학습 코드가 쓴 `events.jsonl`을 별도 CPU 프로세스가 읽습니다. 추적이 실패해도 학습 파일은 그대로 남습니다. 기본값은 **local-only**이며 W&B를 import하지 않습니다. 공개 저장소에서는 CPU 계약 검사와 로컬 그래프 생성을 확인했고, 아래 온라인 명령으로 새 W&B run을 생성하는 검증은 아직 하지 않았습니다.
+학습 코드가 쓴 `events.jsonl`을 별도 CPU 프로세스가 읽습니다. 추적이 실패해도 학습 파일은 그대로 남습니다. 기본값은 **local-only**이며 W&B를 import하지 않습니다. 공개 저장소에서는 CPU 계약 검사와 로컬 그래프 생성, 아래 `collect`·`score`의 실제 W&B 온라인 전송과 재실행을 확인했습니다. 검증은 사용자가 미리 만든 비공개 프로젝트에서 수행했으며 프로젝트 공개 범위는 바꾸지 않았습니다. [실측 기록](verification-2026-09-13.md)
 
 ## 선택적 CPU 패키지
 
@@ -89,3 +89,13 @@ W&B에서 사용할 **비공개 프로젝트를 먼저 만들고**, `.env.exampl
 키가 없으면 local-only로 끝납니다. 연결이나 전송이 실패하면 `online_failed`를 기록하고 원본·로컬 mirror를 보존합니다. 동일 명령을 재실행하면 저장한 run ID와 event cursor를 사용합니다. cursor는 SDK가 수락한 위치이며 서버 저장을 독립적으로 증명하는 receipt는 아닙니다. SDK의 비동기 전송 중 장애가 있었다면 W&B history와 로컬 기록을 대조하세요. 로컬 기록이 기준입니다.
 
 console capture, 코드 저장, 시스템 metadata·metrics·machine info, 패키지 목록 자동 수집을 끕니다. 모델·코드 artifact 업로드 호출은 없습니다. 원문 데이터, 답변, 가중치, 전체 config, 환경변수를 보내지 않습니다. `--metadata`의 가설 문자열도 사용자가 공개 범위를 확인한 내용만 사용하세요.
+
+## 2026-09-13 온라인 상호운용 검증
+
+공개 GPU 1-step 진단의 `events.jsonl`을 `collect --online`으로 보냈습니다. 첫 실행은 허용된 scalar event 3개를 기록했고, 같은 명령을 다시 실행했을 때 새 event는 0개였습니다. 두 실행은 같은 원격 run을 사용했고 history 3행의 index와 값이 로컬 source와 일치했습니다. system metric과 artifact는 0개였고 원문·예측·가중치는 전송하지 않았습니다.
+
+`score --online`은 별도로 완료된 private 30-step reference와 candidate의 학습·전체 search 평가를 입력으로 사용했습니다. 공개 수집기는 각 8개 adapter 파일, 학습 run·status·events·artifact hash, 평가 status·scores·run·예측 hash, 동일 생성 조건을 검사했습니다. reference와 candidate의 W&B summary를 확인했고, candidate의 `discard` 판정과 strict EM 규칙이 일치했습니다. 같은 score 명령을 다시 실행해도 기존 원격 run을 재사용했습니다. score run에는 history·system metric·artifact가 없고 요약 scalar만 있습니다.
+
+첫 score 시도는 Windows artifact manifest의 `\`와 현재 경로의 `/`를 그대로 비교해 네트워크 전에 중단됐습니다. 경로 구분자를 정규화하되 충돌, 상위 경로 이탈, 파일 hash 불일치는 계속 거부하도록 수정한 뒤 온라인 검증을 마쳤습니다. 기존 학습·평가 manifest는 변경하지 않았고 새 GPU 실행도 하지 않았습니다.
+
+이 검증은 공개 tracking 코드와 기존 완료 산출물 사이의 상호운용을 확인합니다. 공개 helper가 정식 30-step 학습이나 전체 benchmark를 실행했다는 증거가 아니며 성능 개선도 주장하지 않습니다. 실제 hash와 검증 범위는 [Windows helper GPU 진단 기록](verification-2026-09-13.md)에 있습니다.
