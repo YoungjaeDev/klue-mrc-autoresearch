@@ -7,5 +7,4 @@
 - 드라이버·시스템 CUDA·전역 Python을 바꾸지 않는다. 설치는 프로젝트 `.venv` 안에서만 한다.
 - final 분할은 열지 않는다. 채점 코드와 정답 변환을 바꾸지 않는다.
 - `.env`, 토큰, 데이터, adapter, 로그는 커밋하지 않는다.
-- CPU 검사: `uv run python -m unittest discover -s tests`. 통과해도 GPU 성공을 뜻하지 않는다.
 - GPU 패키지를 설치한 `.venv`에서는 모든 명령을 `uv run --extra gpu`로 실행한다. `--extra gpu` 없이 `uv run`을 쓰면 uv가 GPU 패키지를 제거한다.

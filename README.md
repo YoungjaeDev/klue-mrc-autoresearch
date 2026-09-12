@@ -15,13 +15,12 @@ Qwen3.5-4B를 KLUE-MRC 독해 데이터로 30 step씩 학습하고, 코딩 에�
 | `run.py` | GPU 작업을 하나씩 실행하고 timeout·GPU 오류를 기록 | 안 함 |
 | `klue_scorer/` | KLUE-baseline 공식 채점 코드 원본 사본 | 안 함 |
 
-## 1. 설치와 CPU 검사
+## 1. 설치와 데이터 준비
 
-Python과 [uv](https://docs.astral.sh/uv/)가 필요합니다. 데이터 준비와 CPU 검사에는 GPU 패키지가 필요 없습니다.
+Python과 [uv](https://docs.astral.sh/uv/)가 필요합니다. 데이터 준비에는 GPU 패키지가 필요 없습니다.
 
 ```console
 uv sync --locked
-uv run python -m unittest discover -s tests
 uv run python prepare.py
 ```
 
