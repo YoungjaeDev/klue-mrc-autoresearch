@@ -12,7 +12,9 @@
 
 ## 검증
 
-`uv run python -m unittest discover -s tests -v`는 CPU 계약 검사다. 모델 통합 검사는 `RUN_MODEL_INTEGRATION=1`일 때만 실행되며 별도 ML 환경이 필요하다. CPU 검사 통과는 GPU 성공을 뜻하지 않는다. `uv run python prepare.py`는 익명 데이터 다운로드와 원문 무결성 검사다.
+`uv run python -m unittest discover -s tests -v`는 CPU 계약 검사다. tracking extra가 있으면 PNG/SVG 통합 검사도 실행한다(`uv run --extra tracking python -m unittest discover -s tests -v`). 모델 통합 검사는 `RUN_MODEL_INTEGRATION=1`일 때만 실행되며 별도 ML 환경이 필요하다. CPU 검사 통과는 GPU 성공을 뜻하지 않는다. `uv run python prepare.py`는 익명 데이터 다운로드와 원문 무결성 검사다.
+
+W&B·그래프는 docs/tracking.md를 따른다. 기본 local-only를 유지하고 `--online`을 요청한 명령만 사용자가 지정한 비공개 프로젝트에 전송한다. 원문·가중치·코드·시스템 정보 업로드 설정을 켜지 않는다. tracker가 임의로 새로운 연구를 시작하거나 final 분할을 열지 않는다.
 
 ## Code Review Rules
 

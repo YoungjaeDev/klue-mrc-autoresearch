@@ -54,6 +54,18 @@ Codex 등 코딩 에이전트에 다음과 같이 요청합니다.
 
 최종 표에는 **zero-shot / 기존 Studio 30-step / SDK reference 30-step / 선택한 모델**의 공식 EM·ROUGE-W를 같은 생성 조건으로 비교합니다. 공개 사용자는 기존 Studio adapter가 없으면 해당 칸을 미제공으로 남길 수 있습니다. 측정하지 않은 숫자는 비워 둡니다. 탐색 EM을 높인 후보가 없으면 reference를 유지합니다. 공통 생성 조건은 Transformers 5.3.0 overlay, NF4 4bit와 bfloat16 계산, SDPA, greedy, max_length 4096, max_new_tokens 128입니다.
 
+## 로컬 그래프와 선택적 W&B
+
+학습 코드를 바꾸지 않고 별도 CPU 수집기로 loss·시간·VRAM을 기록할 수 있습니다. 기본값은 local-only이며 W&B 키가 필요 없습니다. 선택적 패키지는 공개 저장소의 uv 환경에만 추가합니다.
+
+```console
+uv sync --locked --extra tracking --python 3.11
+uv run --extra tracking python -m autoresearch_lab.tracking collect --group my-study --run-name reference --events outputs/reference-01/train/events.jsonl --status outputs/reference-01/train/status.json --metadata outputs/reference-01/train/run.json
+uv run --extra tracking python -m autoresearch_lab.plotting --group my-study --figures-dir outputs/figures/my-study
+```
+
+공식 점수는 hash 검증을 거친 뒤 연결합니다. best curve는 SDK reference에서 시작하며 Studio 전체 실행 시간과 SDK 학습 시간을 섞지 않습니다. [추적 안내](docs/tracking.md)에 후보·최종 점수 등록, PNG·SVG, `--online` 옵션과 전송 제외 항목을 정리했습니다. 공개 소스의 새 W&B run 생성은 아직 검증하지 않았습니다.
+
 ## 출처와 라이선스
 
 이 프로젝트의 코드는 [Apache-2.0](LICENSE)입니다. 다운로드하는 KLUE 데이터와 messages 변환본은 **CC-BY-SA-4.0**으로 별도 적용됩니다. 데이터 저자, 고정 revision, 변환 내역과 공식 채점 코드의 귀속은 [THIRD_PARTY.md](THIRD_PARTY.md)에 정리했습니다.
