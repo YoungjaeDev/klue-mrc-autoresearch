@@ -34,6 +34,7 @@ MAX_STEPS = 128
 BATCH_SIZE = 4
 GRAD_ACCUM = 2
 EVAL_EVERY = 32
+EVAL_BATCH_SIZE = 1  # eval/loss is monitoring only; small batch keeps eval memory low
 
 # ---------------------------------------------------------------------------
 # Hyperparameters (the loop may change these)
@@ -89,6 +90,11 @@ class WandbLoss(TrainerCallback):
         if logs and "eval_loss" in logs:
             wandb.log({"eval/loss": logs["eval_loss"]}, step=state.global_step)
 
+    def on_evaluate(self, args, state, control, **kwargs):
+        # Unsloth sizes fused-CE chunks from driver-level free memory (mem_get_info), which
+        # excludes PyTorch's cached blocks; return eval's cache so the next step sees it as free.
+        torch.cuda.empty_cache()
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -141,7 +147,7 @@ if __name__ == "__main__":
             output_dir=os.path.join(args.out, "trainer"),
             max_steps=args.max_steps,
             per_device_train_batch_size=BATCH_SIZE,
-            per_device_eval_batch_size=BATCH_SIZE,
+            per_device_eval_batch_size=EVAL_BATCH_SIZE,
             gradient_accumulation_steps=GRAD_ACCUM,
             learning_rate=LEARNING_RATE,
             lr_scheduler_type=LR_SCHEDULER,
