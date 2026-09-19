@@ -1,0 +1,28 @@
+{
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "2400000",
+    "BASH_MAX_TIMEOUT_MS": "2400000"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f .loop-active ] || exit 0; f=$(jq -r '(.tool_input.file_path // .tool_input.notebook_path // \"\") | explode | map(if . == 92 then 47 else . end) | implode'); case \"$f\" in */train.py|*/results.tsv|*/summary.md) exit 0;; *) echo \"루프 중에는 train.py, results.tsv, summary.md만 수정한다: $f\" >&2; exit 2;; esac"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Bash|PowerShell|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '(.tool_input.file_path // \"\") + \" \" + (.tool_input.command // \"\") + \" \" + (.tool_input.path // \"\") + \" \" + (.tool_input.pattern // \"\")' | grep -qE 'final_ids|--split final' && { echo 'final 분할은 탐색 중에 열지 않는다' >&2; exit 2; } || exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

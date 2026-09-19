@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "deepwiki": { "type": "http", "url": "https://mcp.deepwiki.com/mcp" },
+    "mcpdoc": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "mcpdoc", "--with", "mcp<2", "mcpdoc",
+               "--urls", "Unsloth:https://docs.unsloth.ai/llms.txt",
+               "--transport", "stdio"]
+    }
+  }
+}
