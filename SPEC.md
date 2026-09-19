@@ -1,0 +1,195 @@
+# KLUE-MRC autoresearch 스펙
+
+`karpathy/autoresearch`를 fork해서 과제를 KLUE-MRC 한국어 독해 파인튜닝으로 바꾼다. 이 문서 하나가 전체 입력이다. 에이전트는 이 문서를 읽고 `program.md`, 데이터 준비 코드, 평가 코드, 학습 코드, hooks 설정을 만든다. 사람은 이 문서를 고치고, 에이전트는 루프 안에서 `train.py`만 고친다.
+
+이 문서를 fork 루트에 `SPEC.md`로 둔다. 아래 프롬프트와 규칙은 그 이름을 기준으로 쓴다.
+
+## 0. 왜 이렇게 하나
+
+autoresearch는 사람이 데이터·평가·예산·규칙을 고정하고, 에이전트가 결과를 읽고 가설을 세워 학습 코드를 고치는 방식이다. 평가는 고정된 문항으로 하고, 점수가 엄격히 오를 때만 그 수정을 남긴다. 나머지는 되돌린다.
+
+바꿀 값 목록을 미리 채워 두고 순서대로 돌리면 그리드 서치이지 autoresearch가 아니다. 에이전트가 이전 결과와 원답변을 읽고 다음 가설을 세우는 부분이 핵심이다.
+
+## 1. 준비물
+
+| 항목 | 필요한 것 |
+|---|---|
+| GPU | NVIDIA GPU 1장 이상. Unsloth QLoRA는 CUDA가 필요하다. macOS나 CPU만 있는 장비에서는 진행하지 않는다. |
+| 도구 | `uv`, `gh`, `git`, Claude Code |
+| 네트워크 | Hugging Face 익명 다운로드(모델 약 9GB, 데이터셋), GitHub raw 파일 |
+| W&B | 계정과 `WANDB_API_KEY`. 환경 변수 `WANDB_ENTITY=<내 entity>`, `WANDB_PROJECT=klue-mrc-autoresearch` |
+
+장비별 하드웨어 조건은 적지 않는다. 환경 파악은 세션 1 첫 단계에서 에이전트가 직접 한다.
+
+- OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 보고한다.
+- GPU가 여러 장이면 `CUDA_VISIBLE_DEVICES`로 1장만 고정한다.
+- NVIDIA GPU가 없으면 진행하지 않고 그 사실만 보고한다. CPU나 다른 모델로 우회하지 않는다.
+- VRAM이 부족해 batch 4가 안 들어가면 batch 2 × accumulation 4로 바꾼다. 유효 배치 8과 128 step의 뜻은 그대로다.
+- 예상 시간은 적지 않는다. 세션 1의 1 step 진단과 세션 2의 baseline에서 실측한 값으로 사람이 예산을 가늠한다.
+
+fork와 스펙 배치:
+
+```bash
+gh repo fork karpathy/autoresearch --clone && cd autoresearch
+git checkout -b klue-mrc
+curl -fsSL https://raw.githubusercontent.com/YoungjaeDev/klue-mrc-autoresearch/main/SPEC.md -o SPEC.md
+git add SPEC.md && git commit -m "docs: add KLUE-MRC autoresearch spec"
+```
+
+## 2. 고정값
+
+에이전트가 만드는 모든 코드는 이 표를 따른다. 표에 없는 값은 Unsloth 기본값을 쓴다.
+
+| 항목 | 값 |
+|---|---|
+| 모델 | `Qwen/Qwen3.5-4B`. Unsloth로 NF4 4bit 로드, LoRA adapter 학습(QLoRA) |
+| 데이터 | Hugging Face 데이터셋 `YoungjaeDev/klue-mrc-messages`, revision `ae6c27baff54df9d0a63ed85451badd6aefc131c`. `train.jsonl`·`validation.jsonl`, 행 = `id` + `messages(system, user, assistant)` |
+| 학습 풀 | train을 seed 3407로 섞은 뒤 앞 1,024행. 질문 유형 비율은 맞추지 않는다. ID 목록 `data/train_pool_ids.txt` |
+| 분할 | validation을 search / final로 나눈다. 지문(NFKC 정규화 후 공백 축약)이 같거나 출처와 제목이 같은 문항은 한 그룹으로 묶어 같은 쪽에 둔다. 그룹 단위 배정이 우선이고, KLUE dev JSON의 `question_type` 3개 비율은 근사로 맞춘다. seed 3407, search 약 20%, 나머지 final. `data/search_ids.txt`, `data/final_ids.txt` |
+| 예산 | 실험 1회 = 정확히 128 optimizer steps(학습 풀 1,024행 1 epoch). batch 4 × accumulation 2 = 유효 배치 8. 최대 sequence 4,096, packing off, assistant 답변 token만 loss |
+| seed | 학습 풀 선택·분할·학습 모두 3407 |
+| 출발값 | learning rate 2e-4, linear scheduler, warmup 3 steps, adamw_8bit, weight decay 0.001, max_grad_norm 1.0, LoRA rank 16, alpha 16, dropout 0, 대상 q/k/v/o/gate/up/down projection |
+| 생성 | 예시 문답 0개, greedy decoding, thinking off, max_new_tokens 128, NF4 4bit. 앞뒤 공백을 뺀 출력이 정확히 `지문에서 답을 찾을 수 없습니다.`이면 빈 문자열로 바꿔 채점한다 |
+| 채점 | KLUE 공식 dev JSON을 정답으로, KLUE-baseline의 `evaluate_for_klue_mrc`를 수정 없이 쓴다. 정답 JSON: `https://github.com/KLUE-benchmark/KLUE/blob/3efd98708a40ff49251fddde35453f8fbb11f536/klue_benchmark/klue-mrc-v1.1/klue-mrc-v1.1_dev.json`, 채점 함수: `https://github.com/KLUE-benchmark/KLUE-baseline/blob/8a03c9447e4c225e806877a84242aea11258c790/klue_baseline/metrics/utils.py`. 채점 전에 validation.jsonl과 dev JSON의 ID가 모두 일치하는지 확인한다 |
+| 평가 방법 | 저장한 adapter를 새 프로세스에서 `PeftModel.from_pretrained`로 불러오고, 저장된 LoRA tensor가 모두 모델에 들어갔는지 assert한다. transformers의 `load_adapter`는 key가 맞지 않으면 조용히 빼먹는다 |
+
+출발값의 출처는 Unsloth Studio 기본값과 Unsloth 노트북 관례다. 근거가 약한 값(warmup, weight decay)은 그래서 "바꿔도 되는 항목"에 있다.
+
+루프에서 바꿔도 되는 것: learning rate, scheduler, warmup, optimizer 설정, weight decay, gradient clipping, LoRA rank·alpha·dropout·대상 모듈.
+
+바꾸면 안 되는 것: 모델, 데이터와 학습 풀, seed, step 수와 유효 배치, sequence 길이, 생성 조건, `prepare.py`, 평가 코드, 분할 파일, 의존성.
+
+## 3. 지표와 기록
+
+- 채택 지표는 search EM 하나다. 지금까지의 최고값보다 엄격히 높을 때만 keep한다. 같거나 낮으면 discard. KLUE-MRC의 1차 지표가 EM이고, ROUGE-W는 긴 답에 유리해 채택 기준으로 쓰지 않는다.
+- ROUGE-W, 유형별 EM, 빈 응답 수는 모니터링만 한다. ROUGE-W만 오른 후보는 discard다.
+- W&B 그래프는 4개만 만든다.
+
+| 키 | 시점 | 내용 |
+|---|---|---|
+| `train/loss` | 매 step | 학습 loss |
+| `eval/loss` | 32 step마다 | search에서 seed 3407로 뽑은 고정 128행의 loss(assistant token만) |
+| `search/em` | 후보 끝 1점 | search 전체 공식 EM |
+| `search/rouge_w` | 후보 끝 1점 | search 전체 공식 ROUGE-W |
+
+peak VRAM(GB)과 학습 시간(초)은 run summary 값으로만 남긴다. 다른 차트·테이블·아티팩트는 만들지 않는다.
+
+`results.tsv` 열(탭 구분, git 제외): `commit`, `search_em`, `search_rouge_w`, `em_type1`, `em_type2`, `em_type3`, `empty_count`, `peak_vram_gb`, `train_seconds`, `eval_seconds`, `status`(keep, discard, crash), `description`(가설 한 줄).
+
+`summary.md`: 후보마다 가설·결과·keep 여부를 한 줄씩 덧붙이고, 맨 위에 현재 최고 EM과 그 commit을 둔다.
+
+## 4. 세션 1: 분석과 생성
+
+Claude Code hooks는 세션을 시작할 때 읽힌다. 세션 안에서 `.claude/settings.json`을 만들어도 그 세션에는 적용되지 않는다. 그래서 세션 1에서 파일을 만들고, 세션 2에서 hooks가 켜진 상태로 루프를 돈다.
+
+fork 루트에서 `claude --permission-mode auto`를 시작하고 아래 프롬프트를 그대로 넣는다.
+
+```text
+SPEC.md를 끝까지 읽고 그 순서대로 진행한다. 사람에게 묻지 않고, 모르는 값은 SPEC.md 2절의 값을 쓴다.
+
+0. 환경 파악. OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 표로 보고한다. GPU가 여러 장이면 CUDA_VISIBLE_DEVICES로 1장만 고정한다. NVIDIA GPU가 없으면 여기서 멈추고 그 사실만 보고한다. WANDB_API_KEY, WANDB_ENTITY, WANDB_PROJECT가 설정돼 있는지만 확인하고 값은 출력하지 않는다.
+
+1. 분석. 이 저장소의 README.md, program.md, prepare.py, train.py를 읽고, 각 파일의 역할과 원본의 실험 루프(브랜치, commit과 reset, results.tsv)를 5줄로 요약한다. 이 단계에서는 파일을 수정하지 않는다.
+
+2. 생성. SPEC.md의 2·3·5·6절을 따라 아래 파일을 만든다.
+   - program.md: 원본 내용을 지우고 SPEC.md 2·3·5·6절의 규칙을 옮긴다. 에이전트가 루프에서 읽을 유일한 규칙 문서다.
+   - pyproject.toml: uv, Python 3.11. Unsloth와 Qwen3.5-4B 학습·평가에 필요한 의존성을 넣는다.
+   - prepare.py: 데이터셋 다운로드, 학습 풀 1,024행 선택, validation의 search/final 분할, KLUE dev JSON 다운로드와 ID 일치 확인, data/ 아래 ID 파일 저장.
+   - klue_mrc_utils.py: KLUE-baseline 채점 함수 사본. 수정하지 않는다.
+   - evaluate.py: --adapter <dir> --split search [--limit N]. --split은 search만 받는다. 새 프로세스에서 PeftModel로 adapter를 로드하고 tensor 일치를 assert한다. 전체·유형별 EM과 ROUGE-W, 빈 응답 수, 원답변 파일을 남기고 W&B run에 search/em, search/rouge_w를 기록한다.
+   - train.py: QLoRA 학습. 상수 MAX_STEPS=128, BATCH_SIZE=4, GRAD_ACCUM=2. 인자 --out <dir>, --max-steps N(진단용). W&B에 train/loss, eval/loss만 기록하고 peak VRAM과 학습 시간은 summary에 넣는다.
+   - .claude/settings.json: SPEC.md 6절의 hooks와 env.
+   - .gitignore: results.tsv, runs/, wandb/, run.log, .loop-active. data/*.txt는 커밋한다.
+
+3. 실행. uv sync, prepare.py. 그 다음 CPU 검사 3개: 학습 풀 전체가 4,096 token 이하인지, assistant token만 loss에 들어가는지, 답 없음 변환과 공식 채점이 예시 몇 개에서 기대대로 동작하는지. 그 다음 --max-steps 1 학습과 search 3문항 평가로 실행 경로를 확인한다. 이 진단은 실험으로 세지 않는다. 6절의 hook 검증 명령을 실행해 exit 코드를 확인한다.
+
+4. 마무리. 저장소 루트에 빈 파일 .loop-active를 만든다. 생성한 파일을 git commit한다. 환경 표, 진단 결과(학습 시간, 평가 시간, peak VRAM), 만든 파일 목록을 보고하고 끝낸다.
+
+제약. CUDA, GPU, kernel, OOM 오류가 나면 즉시 멈추고 오류 원문을 보고한다. 드라이버, 시스템 CUDA, 전역 Python을 바꾸지 않는다. 모든 설치는 uv 가상환경 안에서만 한다. .env와 키 값을 출력하지 않는다.
+```
+
+에이전트가 끝내면 사람이 아래 5개를 확인한 뒤 넘어간다.
+
+1. `train.py` 상수와 하이퍼파라미터가 2절 표와 같다.
+2. `evaluate.py`의 `--split` 선택지에 `final`이 없다.
+3. `data/` 아래 ID 파일 3개의 행 수가 보고와 같고, search ID와 final ID가 겹치지 않는다.
+4. `.claude/settings.json`에 hook 2개와 env 2개가 있고, 6절의 검증 명령이 통과했다.
+5. `.loop-active`가 있고 commit이 됐다.
+
+확인이 끝나면 Claude Code를 종료한다.
+
+## 5. 세션 2: /goal 루프
+
+같은 폴더에서 `claude --permission-mode auto`로 다시 시작한다. hooks는 이때 읽힌다. `/hooks`를 입력해 PreToolUse에 2개가 보이는지 확인한다.
+
+`/goal`은 터미널에 직접 타이핑하거나 `claude -p "/goal …"`로 넣는다. 클립보드 붙여 넣기는 일반 메시지가 되어 goal이 설정되지 않는다.
+
+```text
+/goal program.md를 먼저 끝까지 읽고 그 규칙대로 실험 루프를 돈다. 사람에게 묻지 않는다. 사람이 /goal clear로 멈출 때까지 후보를 계속 돌린다. 후보 수 상한은 없다.
+첫 실험은 train.py를 수정하지 않은 baseline이다. 128 step 학습, 저장 adapter를 새 프로세스에서 search 전체 채점, results.tsv 첫 행, summary.md 작성.
+이후 후보마다: 이전 결과와 search 원답변을 읽고 가설 1개를 세운다. train.py만 수정하고 git commit한다. 128 step 학습을 완주하고 search 전체를 채점한다. results.tsv에 1행을 추가한다. search EM이 지금까지의 최고값보다 엄격히 높을 때만 keep하고, 아니면 discard하고 git reset으로 마지막 keep commit에 돌아간다. summary.md를 갱신한다.
+제약: CUDA, GPU, kernel, OOM 오류가 나면 즉시 멈추고 오류 원문을 보고한 뒤 이 목표를 불가능으로 선언한다. 우회, 작은 모델, 드라이버 변경을 하지 않는다. 실행 1회가 40분을 넘으면 멈춤으로 보고 crash로 기록하고 되돌린다. final 분할의 정답·응답·점수를 열지 않는다. .env와 키 값을 출력하지 않는다. W&B에는 train/loss, eval/loss, search/em, search/rouge_w만 기록한다. prepare.py, 평가 코드, 분할 파일, 의존성을 바꾸지 않는다. 미리 정한 값 목록을 순서대로 돌리지 않는다. 결과를 부풀리지 않는다. 개선이 없으면 없다고 쓴다.
+```
+
+에이전트가 루프 중에 지켜야 하는 규칙은 `program.md`에 있다. 요지는 다음과 같다.
+
+- GPU 작업은 한 번에 하나만 실행한다. 학습 출력은 `run.log`로 보낸다.
+- 매 실험은 원 모델에서 새 LoRA로 시작한다. 이전 adapter를 이어서 학습하지 않는다.
+- 학습 코드에 정답을 넣거나 평가 데이터를 학습에 쓰지 않는다.
+- Bash로 보호 파일을 고치는 우회를 하지 않는다.
+
+실행 1회 40분 제한은 예산이 아니라 멈춤 방지 규칙이다. 128 step은 이보다 훨씬 짧다.
+
+## 6. hooks 요구사항
+
+`.claude/settings.json`에 PreToolUse hook 2개와 env 2개를 둔다. `.loop-active`가 없는 세션 1에서는 편집 hook이 아무것도 막지 않는다.
+
+- 편집 차단: `.loop-active`가 있을 때 Edit/Write/MultiEdit 대상이 `train.py`, `results.tsv`, `summary.md`가 아니면 exit 2. `program.md`, `prepare.py`, `evaluate.py`, `klue_mrc_utils.py`, `data/`, `pyproject.toml`이 보호된다.
+- final 차단: Read의 파일 경로나 Bash 명령에 `final_ids` 또는 `--split final`이 들어 있으면 exit 2.
+- env: `BASH_DEFAULT_TIMEOUT_MS`와 `BASH_MAX_TIMEOUT_MS`를 2,400,000(40분)으로 둔다.
+
+에이전트가 생성할 때 기준으로 삼는 예시다.
+
+```json
+{
+  "env": { "BASH_DEFAULT_TIMEOUT_MS": "2400000", "BASH_MAX_TIMEOUT_MS": "2400000" },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "[ -f .loop-active ] || exit 0; f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */train.py|*/results.tsv|*/summary.md) exit 0;; *) echo \"루프 중에는 train.py, results.tsv, summary.md만 수정한다: $f\" >&2; exit 2;; esac" }]
+      },
+      {
+        "matcher": "Read|Bash",
+        "hooks": [{ "type": "command", "command": "jq -r '(.tool_input.file_path // \"\") + \" \" + (.tool_input.command // \"\")' | grep -qE 'final_ids|--split final' && { echo 'final 분할은 탐색 중에 열지 않는다' >&2; exit 2; } || exit 0" }]
+      }
+    ]
+  }
+}
+```
+
+검증은 hook 명령에 샘플 JSON을 stdin으로 넣고 exit 코드를 본다. 세션 1의 3단계에서 에이전트가 실행하고, 사람도 같은 명령으로 확인할 수 있다.
+
+```bash
+H1=$(jq -r '.hooks.PreToolUse[0].hooks[0].command' .claude/settings.json)
+H2=$(jq -r '.hooks.PreToolUse[1].hooks[0].command' .claude/settings.json)
+touch .loop-active
+echo '{"tool_input":{"file_path":"/w/prepare.py"}}' | sh -c "$H1"; echo "prepare.py -> $?"   # 2
+echo '{"tool_input":{"file_path":"/w/train.py"}}'   | sh -c "$H1"; echo "train.py -> $?"     # 0
+echo '{"tool_input":{"command":"cat data/final_ids.txt"}}' | sh -c "$H2"; echo "final -> $?" # 2
+echo '{"tool_input":{"command":"uv run evaluate.py --split search"}}' | sh -c "$H2"; echo "search -> $?" # 0
+rm .loop-active
+```
+
+## 7. 루프가 끝난 뒤
+
+- `results.tsv`와 `summary.md`를 읽는다. keep 행이 없으면 최종 선택은 baseline이다.
+- `git log`로 keep한 commit만 이어지는지 본다. discard한 후보는 reset으로 사라져 있어야 한다.
+- 대화에서 hook이 막은 기록을 찾는다. 루프 중 `prepare.py` 편집 시도나 final 열람 시도가 있었으면 stderr 메시지가 남는다.
+- final 분할은 `/goal` 범위 밖이다. `prepare.py`가 분할을 만들고 hooks가 열람을 막는다. 루프가 끝난 뒤 사람이 승인하면 base 모델과 선택한 adapter를 final에서 같은 조건으로 1회만 비교한다. 이때만 `evaluate.py`의 final 차단을 풀고, `.loop-active`를 지운다. final 결과를 보고 후보를 바꾸지 않는다.
+
+## 8. 시간
+
+장비별 수치는 적지 않는다. 세션 1의 1 step 진단과 세션 2 baseline에서 학습 시간과 평가 시간을 재고, `results.tsv`의 `train_seconds`·`eval_seconds`로 남긴다. 그 값으로 하루에 몇 후보가 도는지 사람이 가늠한다.
+
+수업 중에는 baseline과 후보 1~2개까지 함께 보고, 나머지는 돌려 둔다. 사람이 멈추고 싶으면 `/goal clear`를 입력한다.
