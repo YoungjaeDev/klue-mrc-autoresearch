@@ -40,7 +40,7 @@ EVAL_BATCH_SIZE = 1  # eval/loss is monitoring only; small batch keeps eval memo
 # Hyperparameters (the loop may change these)
 # ---------------------------------------------------------------------------
 
-LEARNING_RATE = 2e-4
+LEARNING_RATE = 2.5e-4
 LR_SCHEDULER = "linear"
 WARMUP_STEPS = 3
 OPTIM = "adamw_8bit"
