@@ -27,7 +27,7 @@ autoresearch는 사람이 데이터·평가·예산·규칙을 고정하고, 에
 - Apple Silicon이면 MPS로 진행한다. 모델이 실제로 4bit로 올라갔는지와 1 step 시간을 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 진행하지 않고 그 사실만 보고한다. 다른 모델로 우회하지 않는다.
 - VRAM이 부족해 batch 4가 안 들어가면 batch 2 × accumulation 4로 바꾼다. 유효 배치 8과 128 step의 뜻은 그대로다.
 - 예상 시간은 적지 않는다. 진단과 baseline에서 실측한 값으로 사람이 예산을 가늠한다.
-- Windows 네이티브면 `triton-windows`를 의존성에 넣는다. Claude Code hooks는 Git Bash로 실행되고 `jq`가 필요하다. hook이 받는 `file_path`는 `C:\...\train.py`처럼 역슬래시이므로 6절처럼 정규화한다. GPU가 화면 출력도 맡으면 데스크톱 앱이 VRAM 1GB 이상을 쓰므로 루프 중에는 GPU를 쓰는 앱을 줄인다.
+- Windows 네이티브면 `triton-windows`를 의존성에 넣는다. Claude Code hooks는 Git Bash로 실행되고 `jq`가 필요하다. hook이 받는 `file_path`는 `C:\...\train.py`처럼 역슬래시이므로 6절처럼 정규화한다. GPU가 화면 출력도 맡으면 데스크톱 앱이 VRAM 1GB 이상을 쓰므로 루프 중에는 GPU를 쓰는 앱을 줄인다. Python 출력이 cp949로 나와 원답변 한글이 깨지므로 6절 env에 `PYTHONUTF8=1`을 넣는다.
 - `git config user.name`/`user.email`이 비어 있으면 루프의 commit이 실패한다. 환경 파악 때 확인한다.
 - `.env`는 자동으로 읽히지 않는다. 모든 학습·평가 명령은 `uv run --env-file .env …`로 실행하고, `.env`는 `.gitignore`에 넣는다.
 
@@ -118,7 +118,7 @@ fork 루트에서 `claude --permission-mode auto`를 시작하고 아래 프롬�
    - klue_mrc_utils.py: KLUE-baseline 채점 함수 사본. 수정하지 않는다.
    - evaluate.py: --adapter <dir> --split search [--limit N]. --split은 search만 받는다. 새 프로세스에서 PeftModel로 adapter를 로드하고 tensor 일치를 assert한다. 전체·유형별 EM과 ROUGE-W, 빈 응답 수, 원답변 파일을 남기고 W&B run에 search/em, search/rouge_w를 기록한다.
    - train.py: QLoRA 학습. 상수 MAX_STEPS=128, BATCH_SIZE=4, GRAD_ACCUM=2, eval/loss batch 1, eval 뒤 empty_cache. 인자 --out <dir>, --max-steps N(진단용). W&B에 train/loss, eval/loss만 기록하고 peak VRAM과 학습 시간은 summary에 넣는다.
-   - .claude/settings.json: SPEC.md 6절의 hooks와 env.
+   - .claude/settings.json: SPEC.md 6절의 hooks, env, permissions. Windows면 env에 PYTHONUTF8=1을 더한다.
    - .gitignore: results.tsv, summary.md, runs/, wandb/, run.log, .loop-active, .env, unsloth_compiled_cache/. data/*.txt는 커밋한다.
 
 3. 실행. uv sync, prepare.py. 그 다음 CPU 검사 3개: 학습 풀 전체가 4,096 token 이하인지, assistant token만 loss에 들어가는지, 답 없음 변환과 공식 채점이 예시 몇 개에서 기대대로 동작하는지. 그 다음 WANDB_MODE=disabled로 --max-steps 33 학습(step 32 eval을 지나 다시 학습하는 구간까지)과 search 3문항 평가로 실행 경로를 확인한다. 이어서 search에서 지문이 가장 긴 16문항을 같은 생성 함수로 돌려 peak VRAM과 시간을 잰다(진단용 임시 스크립트, 커밋하지 않음). 이 진단은 실험으로 세지 않고 W&B에도 남기지 않는다. 6절의 hook 검증 명령을 실행해 exit 코드를 확인한다.
@@ -133,7 +133,7 @@ fork 루트에서 `claude --permission-mode auto`를 시작하고 아래 프롬�
 1. `train.py` 상수와 하이퍼파라미터가 2절 표와 같다.
 2. `evaluate.py`의 `--split` 선택지에 `final`이 없다.
 3. `data/` 아래 ID 파일 3개의 행 수가 보고와 같고, search ID와 final ID가 겹치지 않는다.
-4. `.claude/settings.json`에 hook 2개와 env 2개가 있고, 6절의 검증 명령이 통과했다.
+4. `.claude/settings.json`에 hook 2개, env 2개(Windows면 3개), 루프 명령 permissions가 있고, 6절의 검증 명령이 통과했다.
 5. `.loop-active`가 있고 commit이 됐다.
 
 ## 5. 재시작과 /goal
@@ -161,23 +161,30 @@ claude --permission-mode auto
 - 매 실험은 원 모델에서 새 LoRA로 시작한다. 이전 adapter를 이어서 학습하지 않는다.
 - 학습 코드에 정답을 넣거나 평가 데이터를 학습에 쓰지 않는다.
 - Bash로 보호 파일을 고치는 우회를 하지 않는다.
+- 원답변 분석 스크립트는 파일로 만들지 않고 `uv run python - <<'EOF' … EOF`처럼 stdin으로 실행한다. 편집 hook이 `train.py`, `results.tsv`, `summary.md` 말고는 쓰기를 막기 때문이다.
+- 명령 하나에 여러 단계를 `&&`나 `;`로 묶지 않는다. 묶인 명령은 permissions 허용 규칙에 맞지 않아 무인 루프가 승인 대기로 멈출 수 있다.
 - 후보 설정 때문에 난 OOM은 crash로 기록하고 되돌린다. baseline OOM과 OOM이 아닌 GPU 오류만 루프를 멈춘다. 그렇지 않으면 rank를 올리는 후보 하나가 루프 전체를 끝낸다.
 
 실행 1회 40분 제한은 예산이 아니라 멈춤 방지 규칙이다. 128 step 학습은 이보다 훨씬 짧지만, search 전체 평가(1,172문항 생성)는 16GB급 GPU에서 수십 분이 걸릴 수 있으니 진단에서 추정한 값과 비교한다.
 
 ## 6. hooks 요구사항
 
-`.claude/settings.json`에 PreToolUse hook 2개와 env 2개를 둔다. `.loop-active`가 없는 준비 단계에서는 편집 hook이 아무것도 막지 않는다.
+`.claude/settings.json`에 PreToolUse hook 2개, env 2개, 루프 명령 permissions를 둔다. `.loop-active`가 없는 준비 단계에서는 편집 hook이 아무것도 막지 않는다.
 
 - 편집 차단: `.loop-active`가 있을 때 Edit/Write/MultiEdit/NotebookEdit 대상이 `train.py`, `results.tsv`, `summary.md`가 아니면 exit 2. `program.md`, `prepare.py`, `evaluate.py`, `klue_mrc_utils.py`, `data/`, `pyproject.toml`이 보호된다. 경로의 `\`는 `/`로 바꿔 비교한다(Windows).
 - final 차단: Read·Grep·Glob의 경로나 패턴, Bash·PowerShell 명령에 `final_ids` 또는 `--split final`이 들어 있으면 exit 2.
-- env: `BASH_DEFAULT_TIMEOUT_MS`와 `BASH_MAX_TIMEOUT_MS`를 2,400,000(40분)으로 둔다.
+- env: `BASH_DEFAULT_TIMEOUT_MS`와 `BASH_MAX_TIMEOUT_MS`를 2,400,000(40분)으로 둔다. Windows면 `PYTHONUTF8=1`을 더한다(한글 원답변 출력).
+- permissions: `--permission-mode auto`에서도 일부 명령은 승인을 기다리며 멈출 수 있다. 루프가 쓰는 명령(`uv run`, venv python, `git commit`, `git reset --hard`)을 `permissions.allow`에 넣는다. venv python 경로는 Windows면 `.venv/Scripts/python`, 그 밖에는 `.venv/bin/python`이다. `git reset --hard`는 이 저장소의 discard 단계에만 쓴다.
 
 에이전트가 생성할 때 기준으로 삼는 예시다.
 
 ```json
 {
   "env": { "BASH_DEFAULT_TIMEOUT_MS": "2400000", "BASH_MAX_TIMEOUT_MS": "2400000" },
+  "permissions": {
+    "allow": ["Bash(uv run *)", "Bash(.venv/Scripts/python *)", "Bash(.venv/bin/python *)",
+              "Bash(git commit *)", "Bash(git reset --hard *)"]
+  },
   "hooks": {
     "PreToolUse": [
       {
