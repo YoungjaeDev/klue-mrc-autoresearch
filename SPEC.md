@@ -14,7 +14,7 @@ autoresearch는 사람이 데이터·평가·예산·규칙을 고정하고, 에
 
 | 항목 | 필요한 것 |
 |---|---|
-| GPU | NVIDIA GPU 1장 권장. Apple Silicon macOS에서도 돌지만 Unsloth가 NF4 대신 LoRA로 폴백해 느리고, 결과를 CUDA와 직접 비교하지 않는다. CPU만 있는 장비에서는 진행하지 않는다. |
+| GPU | NVIDIA GPU 1장 권장. Apple Silicon도 된다: `bitsandbytes>=0.50`, `torch>=2.9`, macOS 26 이상이면 `kernels` 패키지를 설치한다(없으면 느린 폴백). NF4는 유지하고 optimizer만 `adamw_torch`로 바꾼다(MPS는 8bit optimizer 미지원). 결과를 CUDA와 직접 비교하지 않는다. CPU만 있는 장비에서는 진행하지 않는다. |
 | 도구 | `uv`, `gh`, `git`, Claude Code |
 | 네트워크 | Hugging Face 익명 다운로드(모델 약 9GB, 데이터셋), GitHub raw 파일 |
 | MCP | fork 루트 `.mcp.json`에 deepwiki(저장소 질의)와 mcpdoc(Unsloth 문서 llms.txt). 에이전트가 autoresearch 원본과 Unsloth API를 문서로 확인할 때 쓴다 |
@@ -24,7 +24,7 @@ autoresearch는 사람이 데이터·평가·예산·규칙을 고정하고, 에
 
 - OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 보고한다.
 - GPU가 여러 장이면 `CUDA_VISIBLE_DEVICES`로 1장만 고정한다.
-- Apple Silicon이면 MPS로 진행하되 4bit 폴백 여부와 1 step 시간을 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 진행하지 않고 그 사실만 보고한다. 다른 모델로 우회하지 않는다.
+- Apple Silicon이면 MPS로 진행한다. 모델이 실제로 4bit로 올라갔는지와 1 step 시간을 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 진행하지 않고 그 사실만 보고한다. 다른 모델로 우회하지 않는다.
 - VRAM이 부족해 batch 4가 안 들어가면 batch 2 × accumulation 4로 바꾼다. 유효 배치 8과 128 step의 뜻은 그대로다.
 - 예상 시간은 적지 않는다. 1 step 진단과 baseline에서 실측한 값으로 사람이 예산을 가늠한다.
 
@@ -103,7 +103,7 @@ fork 루트에서 `claude --permission-mode auto`를 시작하고 아래 프롬�
 ```text
 이 저장소는 karpathy/autoresearch를 fork한 것이다. 먼저 README.md, program.md, prepare.py, train.py를 읽고 deepwiki로 원본 저장소를 조회해서, 각 파일의 역할과 실험 루프(브랜치, commit과 reset, results.tsv)를 5줄로 요약한다. 그 다음 SPEC.md를 끝까지 읽고 아래 순서대로 진행한다. 사람에게 묻지 않고, 모르는 값은 SPEC.md 2절의 값을 쓴다. Unsloth API는 mcpdoc의 Unsloth 문서로 확인한다.
 
-1. 환경 파악. OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 표로 보고한다. GPU가 여러 장이면 CUDA_VISIBLE_DEVICES로 1장만 고정한다. Apple Silicon이면 MPS로 진행하되 4bit 폴백 여부를 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 여기서 멈추고 그 사실만 보고한다. WANDB_API_KEY, WANDB_ENTITY, WANDB_PROJECT가 설정돼 있는지만 확인하고 값은 출력하지 않는다.
+1. 환경 파악. OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 표로 보고한다. GPU가 여러 장이면 CUDA_VISIBLE_DEVICES로 1장만 고정한다. Apple Silicon이면 MPS로 진행한다. bitsandbytes>=0.50, torch>=2.9를 쓰고 macOS 26 이상이면 kernels를 설치한다. optimizer는 adamw_torch로 바꾸고, 모델이 실제로 4bit로 올라갔는지 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 여기서 멈추고 그 사실만 보고한다. WANDB_API_KEY, WANDB_ENTITY, WANDB_PROJECT가 설정돼 있는지만 확인하고 값은 출력하지 않는다.
 
 2. 생성. SPEC.md의 2·3·5·6절을 따라 아래 파일을 만든다.
    - program.md: 원본 내용을 지우고 SPEC.md 2·3·5·6절의 규칙을 옮긴다. 루프에서 읽을 유일한 규칙 문서다.
