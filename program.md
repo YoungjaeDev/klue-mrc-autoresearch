@@ -24,7 +24,7 @@ Qwen3.5-4B를 KLUE-MRC 한국어 독해로 QLoRA 파인튜닝하면서, 에이�
 | 생성 | 예시 0개, greedy, thinking off, max_new_tokens 128, NF4. 출력이 `지문에서 답을 찾을 수 없습니다.`이면 빈 문자열로 채점 |
 | 채점 | KLUE 공식 dev JSON과 `evaluate_for_klue_mrc` |
 
-바꾸면 안 되는 것: 모델, 데이터와 학습 풀, seed, step 수와 유효 배치, sequence 길이, 생성 조건, `prepare.py`, 평가 코드, 분할 파일, 의존성.
+바꾸면 안 되는 것: 모델, 데이터와 학습 풀, seed, step 수와 유효 배치, sequence 길이, 생성 조건, eval/loss 계산 방식(`EVAL_BATCH_SIZE = 1`, eval 뒤 `empty_cache`), `prepare.py`, 평가 코드, 분할 파일, 의존성.
 
 ## 바꿔도 되는 것
 
@@ -53,7 +53,9 @@ grep -A9 "^---" run.log | tail -9             # search_em, search_rouge_w, em_ty
 - 매 실험은 원 모델에서 새 LoRA로 시작한다. 이전 adapter를 이어서 학습하지 않는다.
 - `---` 요약이 없으면 crash다. `tail -n 50 run.log`로 원인을 본다. 오타 같은 단순 실수는 고쳐서 다시 돌리고, 아이디어 자체가 안 되면 crash로 기록하고 넘어간다.
 - 실행 1회(학습 또는 평가)가 40분을 넘으면 멈춤으로 보고 crash로 기록하고 되돌린다. 이것은 예산이 아니라 멈춤 방지 규칙이다.
-- CUDA, GPU, kernel, OOM 오류가 나면 즉시 멈추고 오류 원문을 보고한다. 우회, 작은 모델, 드라이버 변경을 하지 않는다.
+- baseline에서 CUDA, GPU, kernel, OOM 오류가 나거나, 후보에서 OOM이 아닌 CUDA, GPU, kernel 오류가 나면 즉시 멈추고 오류 원문을 보고한다.
+- 후보가 train.py 변경(예: rank·대상 모듈 증가)으로 OOM을 내면 crash로 기록하고 되돌린 뒤 다음 후보로 간다. VRAM은 16GB이고 화면 출력이 약 1GB를 쓴다.
+- 우회, 작은 모델, 드라이버 변경, 고정값(예산·batch·sequence 길이) 변경으로 오류를 피하지 않는다.
 - 가설을 세울 때 `runs/<commit>/search_predictions.jsonl`의 원답변(raw, pred, ground_truth, em)을 읽는다.
 
 ## 기록
