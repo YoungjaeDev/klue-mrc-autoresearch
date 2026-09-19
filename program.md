@@ -30,6 +30,8 @@ Qwen3.5-4B를 KLUE-MRC 한국어 독해로 QLoRA 파인튜닝하면서, 에이�
 
 `train.py`의 learning rate, scheduler, warmup, optimizer 설정, weight decay, gradient clipping, LoRA rank·alpha·dropout·대상 모듈. 출발값은 lr 2e-4, linear, warmup 3, adamw_8bit, weight decay 0.001, max_grad_norm 1.0, rank 16, alpha 16, dropout 0, q/k/v/o/gate/up/down이다.
 
+모델 구조 참고: Qwen3.5-4B 언어 모델은 32층이다. full-attention 8층에는 `q_proj`, `k_proj`, `v_proj`, `o_proj`가 있고, linear-attention(Gated DeltaNet) 24층에는 `in_proj_qkv`, `in_proj_z`, `in_proj_a`, `in_proj_b`, `out_proj`가 있다. `gate_proj`, `up_proj`, `down_proj`는 32층 모두에 있다. 그래서 출발값의 q/k/v/o는 8층에만 붙는다. vision tower 모듈(`qkv`, `proj`, `linear_fc1`, `linear_fc2`)은 텍스트 과제와 관계없다.
+
 ## 목표와 채택 기준
 
 - 채택 지표는 **search EM 하나**다. 지금까지의 최고값보다 **엄격히 높을 때만 keep**한다. 같거나 낮으면 discard한다.
