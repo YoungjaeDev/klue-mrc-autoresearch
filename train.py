@@ -49,6 +49,10 @@ MAX_GRAD_NORM = 1.0
 LORA_R = 32
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.1
+_ATTN = ["q_proj", "k_proj", "v_proj", "o_proj", "in_proj_qkv", "in_proj_z", "out_proj"]
+_MLP = ["gate_proj", "up_proj", "down_proj"]
+LORA_RANK_PATTERN = {**{m: 16 for m in _ATTN}, **{m: 64 for m in _MLP}}  # capacity moved from attention to MLP
+LORA_ALPHA_PATTERN = dict(LORA_RANK_PATTERN)
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "in_proj_qkv", "in_proj_z", "out_proj"]
 
 # ---------------------------------------------------------------------------
@@ -127,6 +131,8 @@ if __name__ == "__main__":
         r=LORA_R,
         lora_alpha=LORA_ALPHA,
         lora_dropout=LORA_DROPOUT,
+        rank_pattern=LORA_RANK_PATTERN,
+        alpha_pattern=LORA_ALPHA_PATTERN,
         target_modules=TARGET_MODULES,
         bias="none",
         use_gradient_checkpointing="unsloth",
