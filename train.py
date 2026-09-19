@@ -48,7 +48,7 @@ WEIGHT_DECAY = 0.001
 MAX_GRAD_NORM = 1.0
 LORA_R = 16
 LORA_ALPHA = 16
-LORA_DROPOUT = 0.0
+LORA_DROPOUT = 0.1
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "in_proj_qkv", "in_proj_z", "out_proj"]
 
 # ---------------------------------------------------------------------------
