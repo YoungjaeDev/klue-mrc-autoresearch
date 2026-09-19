@@ -41,7 +41,7 @@ EVAL_BATCH_SIZE = 1  # eval/loss is monitoring only; small batch keeps eval memo
 # ---------------------------------------------------------------------------
 
 LEARNING_RATE = 2e-4
-LR_SCHEDULER = "cosine"
+LR_SCHEDULER = "linear"
 WARMUP_STEPS = 3
 OPTIM = "adamw_8bit"
 WEIGHT_DECAY = 0.001
