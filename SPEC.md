@@ -17,7 +17,7 @@ autoresearch는 사람이 데이터·평가·예산·규칙을 고정하고, 에
 | GPU | NVIDIA GPU 1장 권장. Apple Silicon도 된다: `bitsandbytes>=0.50`, `torch>=2.9`, macOS 26 이상이면 `kernels` 패키지를 설치한다(없으면 느린 폴백). NF4는 유지하고 optimizer만 `adamw_torch`로 바꾼다(MPS는 8bit optimizer 미지원). 결과를 CUDA와 직접 비교하지 않는다. CPU만 있는 장비에서는 진행하지 않는다. |
 | 도구 | `uv`, `gh`, `git`, Claude Code |
 | 네트워크 | Hugging Face 익명 다운로드(모델 약 9GB, 데이터셋), GitHub raw 파일 |
-| MCP | fork 루트 `.mcp.json`에 deepwiki(저장소 질의)와 mcpdoc(Unsloth 문서 llms.txt). 에이전트가 autoresearch 원본과 Unsloth API를 문서로 확인할 때 쓴다 |
+| MCP | fork 루트 `.mcp.json`에 deepwiki(저장소 질의)와 mcpdoc(Unsloth·transformers·PEFT·TRL·bitsandbytes·W&B 문서 llms.txt). 에이전트가 autoresearch 원본과 라이브러리 API를 문서로 확인할 때 쓴다 |
 | W&B | 계정과 `WANDB_API_KEY`. 환경 변수 `WANDB_ENTITY=<내 entity>`, `WANDB_PROJECT=klue-mrc-autoresearch` |
 
 장비별 하드웨어 조건은 적지 않는다. 환경 파악은 4절 첫 단계에서 에이전트가 직접 한다.
@@ -36,11 +36,12 @@ fork와 스펙 배치:
 ```bash
 gh repo fork karpathy/autoresearch --clone && cd autoresearch
 git checkout -b klue-mrc
-curl -fsSL https://raw.githubusercontent.com/YoungjaeDev/klue-mrc-autoresearch/main/SPEC.md -o SPEC.md
-git add SPEC.md && git commit -m "docs: add KLUE-MRC autoresearch spec"
+BASE=https://raw.githubusercontent.com/YoungjaeDev/klue-mrc-autoresearch/main
+curl -fsSL $BASE/SPEC.md -o SPEC.md && curl -fsSL $BASE/.mcp.json -o .mcp.json
+git add SPEC.md .mcp.json && git commit -m "docs: add KLUE-MRC autoresearch spec"
 ```
 
-`.mcp.json`도 같은 자리에 둔다. Claude Code를 시작할 때 이 서버 2개를 허용한다. llms.txt는 `--urls`에 `이름:URL` 쌍으로 더 넣을 수 있다.
+`.mcp.json` 내용은 아래와 같다. Claude Code를 시작할 때 이 서버 2개를 허용한다. llms.txt는 `--urls`에 `이름:URL` 쌍으로 더 넣을 수 있다.
 
 ```json
 {
@@ -50,7 +51,13 @@ git add SPEC.md && git commit -m "docs: add KLUE-MRC autoresearch spec"
       "type": "stdio",
       "command": "uvx",
       "args": ["--from", "mcpdoc", "--with", "mcp<2", "mcpdoc",
-               "--urls", "Unsloth:https://docs.unsloth.ai/llms.txt",
+               "--urls",
+               "Unsloth:https://unsloth.ai/docs/llms.txt",
+               "Transformers:https://huggingface.co/docs/transformers/llms.txt",
+               "PEFT:https://huggingface.co/docs/peft/llms.txt",
+               "TRL:https://huggingface.co/docs/trl/llms.txt",
+               "bitsandbytes:https://huggingface.co/docs/bitsandbytes/llms.txt",
+               "WandB:https://docs.wandb.ai/llms.txt",
                "--transport", "stdio"]
     }
   }
@@ -107,7 +114,7 @@ peak VRAM(GB)과 학습 시간(초)은 run summary 값으로만 남긴다. 다�
 fork 루트에서 `claude --permission-mode auto`를 시작하고 아래 프롬프트를 그대로 넣는다. 에이전트는 autoresearch 원본을 먼저 이해한 뒤 이 스펙대로 파일을 만들고 진단까지 끝낸다. 끝나면 다음에 실행할 명령을 출력하고 멈춘다.
 
 ```text
-이 저장소는 karpathy/autoresearch를 fork한 것이다. 먼저 README.md, program.md, prepare.py, train.py를 읽고 deepwiki로 원본 저장소를 조회해서, 각 파일의 역할과 실험 루프(브랜치, commit과 reset, results.tsv)를 5줄로 요약한다. 그 다음 SPEC.md를 끝까지 읽고 아래 순서대로 진행한다. 사람에게 묻지 않고, 모르는 값은 SPEC.md 2절의 값을 쓴다. Unsloth API는 mcpdoc의 Unsloth 문서로 확인한다.
+이 저장소는 karpathy/autoresearch를 fork한 것이다. 먼저 README.md, program.md, prepare.py, train.py를 읽고 deepwiki로 원본 저장소를 조회해서, 각 파일의 역할과 실험 루프(브랜치, commit과 reset, results.tsv)를 5줄로 요약한다. 그 다음 SPEC.md를 끝까지 읽고 아래 순서대로 진행한다. 사람에게 묻지 않고, 모르는 값은 SPEC.md 2절의 값을 쓴다. 라이브러리 API는 mcpdoc의 문서(Unsloth, transformers, PEFT, TRL, bitsandbytes, W&B)로 확인한다.
 
 1. 환경 파악. OS, GPU 이름·VRAM·장수, 드라이버·CUDA 버전, Python·uv 버전, 디스크 여유를 확인해 표로 보고한다. GPU가 여러 장이면 CUDA_VISIBLE_DEVICES로 1장만 고정한다. Apple Silicon이면 MPS로 진행한다. bitsandbytes>=0.50, torch>=2.9를 쓰고 macOS 26 이상이면 kernels를 설치한다. optimizer는 adamw_torch로 바꾸고, 모델이 실제로 4bit로 올라갔는지 보고한다. NVIDIA GPU도 Apple Silicon도 없으면 여기서 멈추고 그 사실만 보고한다. WANDB_API_KEY, WANDB_ENTITY, WANDB_PROJECT가 설정돼 있는지만 확인하고 값은 출력하지 않는다. git user.name/user.email이 설정돼 있는지 확인한다. Windows면 jq와 Git Bash가 있는지 확인한다.
 

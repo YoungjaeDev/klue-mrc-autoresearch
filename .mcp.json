@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "deepwiki": { "type": "http", "url": "https://mcp.deepwiki.com/mcp" },
+    "mcpdoc": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", "mcpdoc", "--with", "mcp<2", "mcpdoc",
+               "--urls",
+               "Unsloth:https://unsloth.ai/docs/llms.txt",
+               "Transformers:https://huggingface.co/docs/transformers/llms.txt",
+               "PEFT:https://huggingface.co/docs/peft/llms.txt",
+               "TRL:https://huggingface.co/docs/trl/llms.txt",
+               "bitsandbytes:https://huggingface.co/docs/bitsandbytes/llms.txt",
+               "WandB:https://docs.wandb.ai/llms.txt",
+               "--transport", "stdio"]
+    }
+  }
+}
