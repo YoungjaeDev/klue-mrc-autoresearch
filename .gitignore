@@ -19,14 +19,10 @@ AGENTS.md
 # Experimental code/artifacts
 dev/
 
-# Results file
-results.tsv
-
 # KLUE-MRC autoresearch
 .env
 runs/
 wandb/
 run.log
 .loop-active
-summary.md
 unsloth_compiled_cache/

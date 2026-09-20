@@ -1,0 +1,133 @@
+commit	search_em	search_rouge_w	em_type1	em_type2	em_type3	empty_count	peak_vram_gb	train_seconds	eval_seconds	status	description
+fb0e7a3	76.02	79.67	72.69	76.27	80.22	392	4.94	479.0	253.4	keep	baseline (train.py unmodified)
+18c33e7	76.19	80.01	72.48	76.27	81.03	393	5.0	505.4	257.6	keep	add LoRA to linear-attn in_proj_qkv/in_proj_z/out_proj (24 DeltaNet layers had no attn LoRA)
+a741aaf	76.54	80.12	74.95	75.95	79.13	374	5.0	528.9	307.5	keep	lora_dropout 0.1 (train/eval gap, eval loss rose after step 96)
+a763dc5	77.47	81.20	77.21	78.16	77.24	355	5.17	512.1	245.0	keep	LoRA r32 a32 (dropout removed overfit; add capacity)
+9e1abf0	76.62	80.17	74.74	80.06	76.15	362	5.17	484.9	276.1	discard	lr 4e-4 (eval loss still falling at step 128)
+763bbf7	76.62	79.96	75.36	76.90	78.05	374	5.55	493.9	250.1	discard	LoRA r64 a64 (r16->32 gave +0.93)
+6906272	77.05	80.61	73.10	77.85	81.57	398	5.17	484.4	267.6	discard	warmup 16 (early eval loss grows with update size)
+94bd5e7	76.19	80.02	72.90	73.42	82.93	408	5.19	490.3	277.0	discard	add DeltaNet gates in_proj_a/in_proj_b to LoRA
+0303d44	74.15	77.47	69.20	71.20	83.20	453	5.17	483.3	266.2	discard	WSD schedule: stable 2e-4, linear decay last 40 steps
+4066034	76.19	80.05	76.18	79.43	73.44	336	5.17	483.3	269.6	discard	max_grad_norm 5.0 (clipped on 126/128 steps)
+1d2c092	77.05	80.85	76.59	76.58	78.05	362	5.17	483.8	267.2	discard	max_grad_norm 3.0 (1.0 over-abstains, 5.0 under-abstains)
+104bbff	77.30	80.42	73.72	77.85	81.57	393	5.51	481.5	267.9	discard	adamw_torch fp32 optimizer states
+fd08d4d	76.71	80.78	75.36	77.22	78.05	361	5.17	483.4	268.4	discard	lr 1e-4 (larger updates hurt)
+776ed27	77.90	82.18	77.00	77.53	79.40	351	5.17	483.5	266.5	keep	cosine schedule (WSD higher late LR hurt; cosine lower late LR)
+3ff18d6	76.11	79.71	75.77	76.90	75.88	347	5.17	483.4	267.6	discard	polynomial power-2 decay (even lower late LR)
+2df7232	77.13	80.70	76.80	78.48	76.42	347	5.17	487.2	266.7	discard	lora_dropout 0.2 (reduce run-to-run variance)
+b46617b	75.94	80.04	75.56	77.53	75.07	337	4.96	451.8	213.5	discard	attention-only LoRA (drop MLP gate/up/down)
+1fcdc23	77.56	81.36	77.21	81.96	74.25	336	5.37	487.4	269.0	discard	MLP LoRA rank/alpha 64, attention 32
+bc5b22f	75.77	79.93	75.15	77.22	75.34	341	5.03	460.3	212.5	discard	MLP-only LoRA
+36a01a6	76.37	80.58	75.36	77.22	76.96	350	5.17	484.0	266.6	discard	cosine peak lr 2.5e-4
+b3fe033	74.23	78.15	72.07	75.63	75.88	371	5.31	486.2	265.5	discard	attention LoRA rank/alpha 64, MLP 32
+d4697c3	77.47	81.21	75.98	79.43	77.78	349	5.10	482.9	266.3	discard	attention LoRA rank/alpha 16, MLP 32
+92d297a	77.47	81.42	74.95	77.22	81.03	372	5.14	477.0	255.8	discard	drop full-attention q/k/v/o LoRA
+2aec72f	76.02	80.71	77.82	79.11	71.00	311	5.17	487.0	270.4	discard	MLP LoRA alpha 64 at r32 (scale 2)
+5ec6836	78.07	81.92	75.56	79.43	80.22	376	5.30	487.2	268.2	keep	attention rank 16 + MLP rank 64 (alpha=rank)
+1a914ae	76.11	80.67	74.95	77.85	76.15	349	5.30	489.6	269.9	discard	MLP alpha 96 at r64 (scale 1.5)
+04ba3fc	74.83	79.00	72.07	76.27	77.24	370	5.96	496.0	285.8	discard	MLP rank/alpha 128, attention 16
+dff94ba	77.56	81.26	74.95	80.70	78.32	356	5.30	489.8	267.2	discard	MLP alpha 48 at r64 (scale 0.75)
+356bc85	76.79	80.98	79.47	80.70	69.92	293	5.30	487.5	269.4	discard	adam beta1 0.95
+8b7e8a7	77.47	81.08	74.54	78.16	80.76	388	5.30	488.1	267.5	discard	adam beta1 0.92
+8a9b0d6	76.37	80.49	75.98	77.53	75.88	344	5.22	487.3	265.8	discard	lion_8bit lr 5e-5
+9baf968	76.02	80.00	78.85	78.16	70.46	303	5.30	490.8	269.8	discard	lora_dropout 0.05
+b185dbc	77.47	81.56	74.13	78.80	80.76	372	5.27	487.2	267.1	discard	attention rank/alpha 8, MLP 64
+d5b3353	77.05	81.37	76.18	81.33	74.53	330	5.29	482.2	261.6	discard	drop DeltaNet output gate in_proj_z
+d4f1b7a	77.82	81.87	77.41	76.58	79.40	359	5.30	488.3	275.8	discard	warmup 0
+666bf43	77.39	81.57	74.13	77.22	81.84	387	5.30	488.0	268.0	discard	max_grad_norm 2.0
+acaf86d	75.94	80.43	74.54	80.06	74.25	335	5.18	474.1	249.1	discard	LoRA only on LM layers 8-31 (skip lowest 8)
+b4bb6fd	77.30	81.80	74.33	79.75	79.13	353	6.04	474.7	229.1	discard	LoRA only on LM layers 0-23 (skip top 8)
+7b219df	76.79	80.93	77.62	78.16	74.53	331	5.42	490.8	269.7	discard	layers 0-7 MLP rank/alpha 128 (first attempt cc45c1d failed eval load: overlapping rank_pattern keys; fixed and rerun)
+800ee2f	76.62	81.03	76.59	75.63	77.51	343	5.30	488.4	266.3	discard	attention LoRA alpha 8 at r16 (scale 0.5)
+a37b80f	77.56	81.05	76.80	79.43	76.96	360	5.30	488.1	265.5	discard	adam beta2 0.99
+d42ccfb	79.01	82.40	77.62	79.75	80.22	372	5.30	488.0	262.8	keep	linear schedule on MLP-64/attn-16 config
+20531e7	75.17	78.38	68.38	71.84	86.99	481	5.30	487.8	261.5	discard	sqrt decay (polynomial power 0.5)
+18975c0	76.96	80.43	73.92	75.32	82.38	412	5.30	488.0	262.9	discard	warmup 0 on linear/MLP-64
+c7fc148	74.83	78.14	71.05	72.15	82.11	432	5.37	489.2	267.9	discard	attention rank/alpha 32 on linear/MLP-64
+d4bcd5f	76.02	79.22	71.66	75.63	82.11	415	5.55	495.8	266.6	discard	MLP rank/alpha 96 on linear
+65e0fbb	77.30	81.05	73.10	77.22	82.93	401	5.30	481.1	263.2	discard	lora_dropout 0 on linear/MLP-64
+f477167	78.58	82.16	75.98	80.06	80.76	380	5.77	487.3	267.0	discard	adamw_torch fp32 states on MLP-64 config
+e776bee	76.96	80.37	73.92	75.00	82.66	408	5.32	489.5	263.9	discard	full-attention q/k/v/o rank 32, DeltaNet 16, MLP 64
+2d674bf	79.69	83.26	80.08	81.96	77.24	340	5.30	488.7	263.3	keep	linear peak lr 2.5e-4 on MLP-64/attn-16
+e0895ab	77.47	81.23	73.51	78.80	81.57	392	5.34	489.1	262.9	discard	attention rank/alpha 24
+6c96240	75.34	79.03	73.92	74.05	78.32	387	5.30	488.8	262.0	discard	linear peak lr 3e-4
+2f78b5f	78.33	82.22	75.15	78.48	82.38	386	5.30	489.5	262.9	discard	warmup 8 at lr 2.5e-4
+1f78eb5	77.13	80.45	76.18	77.85	77.78	371	5.30	489.6	265.5	discard	attention alpha 20 at r16 (scale 1.25)
+1ca0d18	76.02	79.51	71.87	71.52	85.37	447	5.30	492.6	264.7	discard	lora_dropout 0.15 at lr 2.5e-4
+5c7c46d	78.24	81.48	76.80	80.06	78.59	366	5.20	491.6	266.7	discard	MLP rank/alpha 48 at lr 2.5e-4
+bbe142b	75.60	79.22	76.39	75.00	75.07	364	5.30	488.9	266.3	discard	cosine at peak 2.5e-4
+8af56fd	76.28	79.29	72.69	72.15	84.55	450	5.30	488.9	264.8	discard	linear decay to 10% floor
+e4f76be	71.42	75.67	69.82	69.62	75.07	388	5.30	489.0	265.3	discard	LoRA+ (lora_B lr x4)
+c97c0d7	76.37	80.03	73.92	75.63	80.22	388	5.30	489.0	265.3	discard	adam epsilon 1e-6
+cbd93ba	0	0	0	0	0	0	0	0	0	crash	LoRA on lm_head (infeasible: Unsloth moves lm_head to modules_to_save = full 248320x2560 tied weight; evaluate.py LoRA-count assert would fail)
+fa1fe75	76.02	79.51	73.10	75.63	80.22	400	5.30	489.0	264.0	discard	MLP alpha 48 at lr 2.5e-4 (MLP scale 0.75)
+b190b43	76.88	80.10	77.41	79.43	73.98	348	5.30	491.3	266.8	discard	MLP alpha 77 at lr 2.5e-4 (MLP scale 1.2)
+3cab54e	76.45	80.14	72.28	76.90	81.57	400	5.30	488.8	262.7	discard	adam beta1 0.85
+18f9b5b	77.39	80.88	73.31	75.32	84.55	415	5.31	495.9	275.6	discard	add DeltaNet gates in_proj_a/b at rank 16
+3101d93	77.22	80.40	71.87	78.80	82.93	421	5.30	488.7	266.4	discard	attention alpha 12 at r16 (scale 0.75)
+7f0891f	78.33	81.91	76.80	78.80	79.95	370	5.15	502.3	263.9	discard	adafactor at lr 2.5e-4
+c706492	77.13	81.11	74.54	75.95	81.57	389	5.15	502.2	267.3	discard	adafactor lr 4e-4
+6baf341	77.73	81.53	75.98	75.95	81.57	378	5.15	502.0	265.8	discard	adafactor lr 1.5e-4
+9429ea5	75.68	79.09	71.87	73.10	82.93	434	5.30	488.8	266.6	discard	max_grad_norm 0.5 (near-null change: noise-floor probe; 179/1172 raw outputs changed, -4.01 EM)
+a4a343c	76.28	80.65	75.77	76.58	76.69	363	5.30	489.1	269.6	discard	adam beta1 0.95 on linear/2.5e-4 base
+5527a9e	77.99	81.39	75.56	77.85	81.30	391	5.77	487.5	264.8	discard	adamw_torch fp32 states at lr 2.5e-4
+af6195b	75.85	79.62	72.07	77.22	79.67	389	5.20	488.8	263.4	discard	MLP rank 48 + warmup 8 (two lowest eval-loss changes combined; eval loss 0.2516, not additive)
+aac14c3	76.71	80.16	73.51	76.27	81.30	407	5.30	488.9	265.6	discard	lora_dropout 0.05 at lr 2.5e-4 (eval loss 0.2586)
+2bbc7d8	77.65	81.04	76.59	76.58	79.95	372	5.25	489.0	268.7	discard	MLP rank/alpha 56 (eval loss 0.2471: not monotone vs 48/64)
+557b07b	77.05	81.17	74.54	78.16	79.40	365	5.96	489.0	270.9	discard	MLP rank/alpha 128 at lr 1.5e-4 (vs 74.83 at 2.5e-4)
+0bb7789	74.40	77.63	68.99	70.25	85.09	475	5.54	489.0	264.8	discard	MLP rank/alpha 96 at lr 2e-4
+3f6144e	78.84	82.11	76.80	81.01	79.67	367	5.40	489.0	265.4	discard	MLP rank by fan-in (gate/up 48, down 128)
+821697a	76.71	80.24	74.74	76.58	79.40	388	5.47	489.0	266.2	discard	down_proj rank 128, gate/up 64
+d605f9d	77.47	80.63	73.10	78.48	82.38	405	5.30	489.0	265.2	discard	gate/up rank 48, down 64
+0b688ce	77.39	80.78	74.54	76.58	81.84	405	5.30	489.0	243.7	discard	drop DeltaNet LoRA (eval loss 0.297)
+5410eab	76.79	80.24	71.66	76.90	83.47	420	5.30	488.8	263.8	discard	weight_decay 0 (second near-null probe: -2.90 EM)
+3202aba	78.33	81.98	73.31	81.33	82.38	383	5.30	489.0	268.2	discard	adamw_torch + MLP rank 48
+b9b6cdc	77.30	81.08	74.33	76.90	81.57	389	5.20	502.0	265.0	discard	adafactor + MLP rank 48
+e2bfd08	78.58	82.22	75.56	78.48	82.66	390	5.20	489.0	239.1	discard	MLP rank/alpha 32 at lr 2.5e-4
+f49bfe7	78.24	81.80	74.74	76.90	84.01	405	5.30	489.0	265.4	discard	attention rank/alpha 4
+b57d56b	77.05	80.58	74.95	75.00	81.57	406	5.20	489.0	236.9	discard	MLP rank 32 at lr 3e-4 (vs 75.34 at MLP64)
+aabe595	74.91	78.63	69.82	73.10	83.20	425	5.34	489.0	266.4	discard	attention rank 32 with alpha 16 (scale 0.5)
+60dd4ba	76.96	80.60	74.95	75.63	80.76	388	5.25	489.0	253.1	discard	attention LoRA on upper half layers 16-31 only
+7b62eb7	76.96	80.58	72.28	76.90	83.20	413	5.25	489.0	251.7	discard	attention LoRA on lower half layers 0-15 only (same EM as upper half)
+839fe9f	77.05	80.68	73.31	78.48	80.76	396	5.25	489.0	250.7	discard	attention LoRA on q/v/in_proj_qkv only
+594f5c9	78.84	81.82	76.18	81.96	79.67	377	5.15	470.0	236.4	discard	MLP-only LoRA at lr 2.5e-4 linear
+c85585e	77.47	80.82	76.18	75.32	81.03	390	5.40	470.0	239.3	discard	MLP-only rank/alpha 128
+254b12e	75.94	79.51	72.07	76.90	80.22	397	5.15	470.0	235.9	discard	MLP-only at lr 3e-4
+3e0e420	78.50	82.64	76.80	80.38	79.13	354	5.15	470.0	238.6	discard	MLP-only at lr 2e-4 (eval loss 0.2339)
+2f33bc2	76.88	80.82	73.51	76.58	81.57	387	5.10	470.0	210.2	discard	MLP-only rank 48 at lr 2e-4 (eval loss 0.2426)
+182e647	74.40	78.58	73.10	75.63	75.07	358	5.05	470.0	206.9	discard	LoRA on gate/up only (no down_proj)
+f24c52f	77.39	81.56	75.15	79.11	78.86	361	5.00	470.0	194.0	discard	LoRA on down_proj only
+584de18	75.09	78.98	70.64	78.48	78.05	381	5.38	470.0	196.1	discard	down_proj-only rank/alpha 256
+8f09bf8	75.34	79.22	74.54	77.85	74.25	346	5.00	470.0	193.0	discard	down_proj-only rank/alpha 16
+da399e3	77.56	81.19	74.13	78.80	81.03	375	5.15	470.0	234.3	discard	MLP-only at lr 1.5e-4 (eval loss 0.2381)
+48ef28f	78.24	82.12	77.00	79.43	78.86	356	5.15	470.0	236.7	discard	MLP-only with dropout 0
+a95d627	70.73	74.04	63.86	70.57	79.95	462	5.10	470.0	197.8	discard	MLP-only LoRA on upper half layers 16-31 (-8.1)
+702f4d8	76.88	80.77	79.06	82.28	69.38	294	5.10	470.0	200.0	discard	MLP-only LoRA on lower half layers 0-15 (type1 79.1/type2 82.3 best, type3 69.4)
+60f06a5	77.39	81.50	75.15	77.85	79.95	363	5.20	470.0	230.9	discard	lower-half MLP + all-layer attention rank 16
+a603eeb	76.45	80.49	75.77	74.05	79.40	377	5.10	470.0	204.7	discard	MLP-only LoRA on layers 0-23
+a40d846	78.75	82.35	77.62	78.80	80.22	368	5.10	470.0	199.3	discard	lower-half MLP + linear decay to 10% floor (abstention 294->368 as predicted, +1.87)
+cae8516	75.85	78.82	70.84	71.84	85.91	456	5.20	470.0	196.9	discard	lower-half MLP rank 96 + 10% floor (empties 456)
+551dc5b	78.33	82.03	74.74	78.16	83.20	387	5.10	470.0	199.0	discard	lower-half MLP + 10% floor at lr 2e-4
+c7058ff	77.22	80.93	75.15	76.58	80.49	384	5.05	470.0	194.8	discard	MLP LoRA layers 0-11 + 10% floor
+77b3899	75.43	78.61	70.43	73.73	83.47	447	5.30	470.0	261.9	discard	2.5% lr floor on best config (empties 447, same as 10% floor)
+8f7480e	74.83	79.50	76.18	74.68	73.17	342	5.30	470.0	267.8	discard	custom linear decay to 0 at step 112 (empties 342)
+50e271b	77.39	80.99	75.56	75.63	81.30	393	5.30	470.0	264.1	discard	warmup 16 at lr 2.5e-4
+742a8b3	76.54	80.35	74.95	80.38	75.34	357	5.30	470.0	265.3	discard	max_grad_norm 10 (clipping effectively off)
+c7264a5	79.01	82.80	78.85	78.16	79.95	364	5.25	470.0	254.9	discard	DeltaNet-only attention LoRA (drop full-attn q/k/v/o)
+0948338	77.13	80.44	70.02	77.85	85.91	438	5.28	470.0	252.3	discard	DeltaNet-only attention at rank 24
+deed4ce	76.79	80.57	72.07	75.63	84.01	415	5.22	470.0	251.6	discard	DeltaNet-only attention at rank 8
+1cdd7c9	76.88	80.66	75.36	77.53	78.32	360	5.30	470.0	262.2	discard	uniform rank 32 at lr 2.5e-4 linear
+ebd6014	78.50	82.35	76.59	80.70	79.13	353	5.25	470.0	253.2	discard	DeltaNet attention without in_proj_z + MLP 64
+b84da75	77.65	81.11	73.10	80.70	81.03	394	5.28	470.0	242.8	discard	gate/up rank 32, down 64
+58249f7	77.47	80.83	73.92	78.80	81.03	391	5.30	470.0	268.6	discard	adam beta2 0.95
+2217c72	77.30	81.01	74.74	79.43	78.86	376	5.25	470.0	232.0	discard	DeltaNet-only attention + MLP rank 48
+ade8d55	74.74	78.17	69.61	71.84	84.01	452	5.30	470.0	263.7	discard	weight_decay 0.0005 (third near-null probe: -4.95 EM)
+dea2374	77.30	81.32	74.13	80.06	79.13	365	5.20	470.0	220.8	discard	lower-half MLP + DeltaNet-only attention
+7cac8a3	78.33	82.25	76.18	77.53	81.84	375	5.30	470.0	266.7	discard	lora_dropout 0.3
+5032c81	77.47	80.51	73.72	80.06	80.22	394	5.10	470.0	214.1	discard	small MLP-only adapter (gate/up 16, down 64)
+72fa7b0	75.94	80.34	77.41	75.95	73.98	332	5.30	470.0	264.1	discard	warmup 32
+339817a	77.47	81.59	75.56	79.43	78.32	366	5.35	470.0	266.2	discard	EMA of LoRA weights (decay 0.95)
+33b5a65	76.88	80.95	76.18	80.38	74.80	340	5.35	470.0	267.4	discard	EMA of LoRA weights (decay 0.99)
+8e8b34f	77.47	81.04	75.36	78.16	79.67	382	5.20	506.2	265.9	discard	fp32 compute (bf16 off)
+e95d6f7	77.99	81.23	74.13	75.32	85.37	420	5.30	470.0	262.2	discard	lr 2.75e-4
+8118eed	76.79	80.55	71.25	76.27	84.55	422	5.30	491.1	243.8	discard	lr 2.25e-4
