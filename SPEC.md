@@ -58,7 +58,7 @@ git add SPEC.md .mcp.json && git commit -m "docs: add KLUE-MRC autoresearch spec
                "TRL:https://huggingface.co/docs/trl/llms.txt",
                "bitsandbytes:https://huggingface.co/docs/bitsandbytes/llms.txt",
                "WandB:https://docs.wandb.ai/llms.txt",
-               "--transport", "stdio"]
+               "--follow-redirects", "--transport", "stdio"]
     }
   }
 }
